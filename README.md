@@ -27,7 +27,7 @@ The project is set up with project specific CONVEX_DEPLOYMENT and VITE_CONVEX_UR
 
 The convex server has a separate set of environment variables that are accessible by the convex backend.
 
-Currently, these variables include auth-specific keys: JWKS, JWT_PRIVATE_KEY, and SITE_URL.
+Convex Auth uses the Convex deployment's `CONVEX_SITE_URL` and auth key configuration. Email OTP delivery uses Resend. Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` as **Convex environment variables** for the deployment (for example with `npx convex env set RESEND_API_KEY ...` and `npx convex env set RESEND_FROM_EMAIL ...`). Verify the sender address/domain in Resend first. Do not expose the Resend API key through a `VITE_` variable.
 
 
 # Using Authentication (Important!)
@@ -38,9 +38,7 @@ You must follow these conventions when using authentication.
 
 All convex authentication functions are already set up. The auth currently uses email OTP and anonymous users, but can support more.
 
-The email OTP configuration is defined in `src/convex/auth/emailOtp.ts`. DO NOT MODIFY THIS FILE.
-
-Also, DO NOT MODIFY THESE AUTH FILES: `src/convex/auth.config.ts` and `src/convex/auth.ts`.
+The email OTP configuration is defined in `src/convex/auth/emailOtp.ts` and sends messages through Resend. The provider ID remains `email-otp`, so the existing sign-in page flow is retained. `src/convex/auth.config.ts` validates this project's own Convex Auth tokens; the former Freebuff federated JWT provider has been removed. `src/convex/auth.ts` still enables email OTP and anonymous sign-in.
 
 ## Using Convex Auth on the backend
 
