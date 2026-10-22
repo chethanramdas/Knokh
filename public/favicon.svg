@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="KNOKH">
+  <rect width="64" height="64" rx="14" fill="#0d4a52" />
+  <path d="M16 14h6v15.5L33.8 14H42L30.6 28.2 42.4 50h-8.6l-8.2-15.6L22 38.4V50h-6z" fill="#ffffff" />
+  <circle cx="47" cy="20" r="4.5" fill="#e6a85c" />
+</svg>
