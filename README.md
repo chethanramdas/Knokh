@@ -289,3 +289,8 @@ When using convex, make sure:
 - This includes importing generated files like `@/convex/_generated/server`, `@/convex/_generated/api`
 - Remember to import functions like useQuery, useMutation, useAction, etc. from `convex/react`
 - NEVER have return type validators.
+
+
+## Cloudflare Pages deployment
+
+The production build deploys the Convex functions before building the Vite storefront. Configure `CONVEX_DEPLOY_KEY` as a secret in Cloudflare Pages production settings. The storefront uses `VITE_CONVEX_URL` when provided and otherwise falls back to the production Convex URL configured in `src/main.tsx`.
