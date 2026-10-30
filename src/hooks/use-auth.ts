@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useState} from "react";
-type User={_id:string;id:string;name?:string;email?:string;role?:string;defaultCurrency?:string}|null;
+type User={_id:string;id:string;name?:string;email?:string;role?:string;defaultCurrency?:string;isAnonymous?:boolean}|null;
 export function useAuth(){
  const [user,setUser]=useState<User>(null);const [isLoading,setLoading]=useState(true);
  const refresh=useCallback(async()=>{try{const r=await fetch("/api/auth/me",{credentials:"include"});const d=await r.json();setUser(d.user??null);}catch{setUser(null)}finally{setLoading(false)}},[]);
