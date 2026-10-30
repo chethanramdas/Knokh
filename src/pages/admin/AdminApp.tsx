@@ -17,7 +17,7 @@ import {
 import React, { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/api";
 import { Container, InfoNote, LoadingBlock, SectionHeading } from "@/components/knokh/ui";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
