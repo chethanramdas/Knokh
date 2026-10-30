@@ -1,9 +1,9 @@
-import { useMutation } from "convex/react";
+import { useMutation } from "@/lib/cloudflare-client";
 import { Loader2, Mail, MessageSquare, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/api";
 import {
   Container,
   EmptyState,
