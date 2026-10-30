@@ -1,5 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="KNOKH">
-  <rect width="64" height="64" rx="14" fill="#0d4a52" />
-  <path d="M16 14h6v15.5L33.8 14H42L30.6 28.2 42.4 50h-8.6l-8.2-15.6L22 38.4V50h-6z" fill="#ffffff" />
-  <circle cx="47" cy="20" r="4.5" fill="#e6a85c" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KNOKH">
+  <defs><linearGradient id="g" x1="12" y1="10" x2="52" y2="54"><stop stop-color="#FFD447"/><stop offset=".5" stop-color="#FF9D18"/><stop offset="1" stop-color="#F06A16"/></linearGradient></defs>
+  <rect width="64" height="64" rx="15" fill="#17191D"/>
+  <path d="M13 15h5.5l4.2 25.2a5 5 0 0 0 4.9 4.2h19.8M22 23h29l-5.2 15.2H25.1" fill="none" stroke="url(#g)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M34 25v12m0-6 10-8m-10 8 10 8" fill="none" stroke="url(#g)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="29" cy="51" r="3.2" fill="#FFD447"/><circle cx="46" cy="51" r="3.2" fill="#FFD447"/>
 </svg>
