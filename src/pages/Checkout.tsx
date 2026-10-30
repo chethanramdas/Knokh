@@ -1,4 +1,4 @@
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "@/lib/cloudflare-client";
 import {
   AlertTriangle,
   Banknote,
