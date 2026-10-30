@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "@/lib/cloudflare-client";
 import { Link2, Loader2, Plug, RefreshCw, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
