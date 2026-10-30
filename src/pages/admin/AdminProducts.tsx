@@ -2,8 +2,8 @@ import { useMutation, useQuery } from "@/lib/cloudflare-client";
 import { Download, Loader2, Pencil, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/api";
+import type { Id } from "@/lib/cloudflare-types";
 import {
   EmptyState,
   InfoNote,
