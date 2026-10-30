@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "@/lib/cloudflare-client";
 import {
   AlertTriangle,
   Loader2,
