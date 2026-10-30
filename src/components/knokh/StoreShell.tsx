@@ -17,7 +17,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
