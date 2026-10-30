@@ -9,8 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/api";
+import type { Id } from "@/lib/cloudflare-types";
 import { BRAND, STORAGE_KEYS } from "./brand";
 import { convertMinor, formatMoney, type CurrencyConfig } from "./format";
 
