@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@/lib/cloudflare-client";
 import { ArrowDown, ArrowUp, Loader2, Save } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/api";
 import { InfoNote, LoadingBlock, SectionHeading, StatusPill } from "@/components/knokh/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
