@@ -12,8 +12,8 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/api";
+import type { Id } from "@/lib/cloudflare-types";
 import {
   Container,
   EmptyState,
