@@ -2,8 +2,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { StoreShell } from "@/components/knokh/StoreShell";
 import { StoreProvider } from "@/lib/store";
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient } from "convex/react";
 import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
@@ -133,8 +131,6 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL || "https://agreeable-caterpillar-156.convex.cloud";
-const convex = new ConvexReactClient(convexUrl);
 
 function RouteSyncer() {
   const location = useLocation();
@@ -162,7 +158,6 @@ function RouteSyncer() {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RootErrorBoundary>
-      <ConvexAuthProvider client={convex}>
         <BrowserRouter>
           <StoreProvider>
             <RouteSyncer />
@@ -255,7 +250,6 @@ createRoot(document.getElementById("root")!).render(
           </StoreProvider>
         </BrowserRouter>
         <Toaster />
-      </ConvexAuthProvider>
     </RootErrorBoundary>
   </StrictMode>,
 );
