@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS products (
   created_by TEXT REFERENCES users(id),
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS products_status_created ON products(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS products_status_updated ON products(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS products_category_status ON products(category_id, status);
 CREATE INDEX IF NOT EXISTS products_brand_status ON products(brand_id, status);
 CREATE INDEX IF NOT EXISTS products_price ON products(status, price_minor);
