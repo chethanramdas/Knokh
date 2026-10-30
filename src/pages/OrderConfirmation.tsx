@@ -1,4 +1,4 @@
-import { useQuery } from "convex/react";
+import { useQuery } from "@/lib/cloudflare-client";
 import { CheckCircle2, Clock, PackageCheck, Truck } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
