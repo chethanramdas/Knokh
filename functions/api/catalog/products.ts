@@ -21,6 +21,8 @@ function jsonArray(value: string | null): unknown[] {
   catch { return []; }
 }
 
+type PagesFunction<E> = (context: { request: Request; env: E }) => Response | Promise<Response>;
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!env.DB) return Response.json({ error: "Catalog database is not configured" }, { status: 503 });
 
