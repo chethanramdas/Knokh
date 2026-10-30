@@ -2,7 +2,7 @@ import { useQuery } from "@/lib/cloudflare-client";
 import { Filter, PackageSearch, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/api";
 import { ProductCard } from "@/components/knokh/ProductCard";
 import {
   Container,
