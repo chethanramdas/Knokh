@@ -1,11 +1,7 @@
 import { Link } from "react-router";
 import { cn } from "@/lib/utils";
 
-/**
- * KNOKH wordmark. The mark is an original geometric "K" with a single amber
- * accent dot, drawn as SVG so it stays crisp in the header, the mobile bar and
- * on printed order confirmations.
- */
+/** KNOKH's signature cart-inspired K, rendered as crisp scalable SVG. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg
@@ -13,13 +9,21 @@ export function LogoMark({ className }: { className?: string }) {
       className={cn("size-9 shrink-0", className)}
       role="img"
       aria-label="KNOKH"
+      xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="64" height="64" rx="14" className="fill-primary" />
-      <path
-        d="M16 14h6v15.5L33.8 14H42L30.6 28.2 42.4 50h-8.6l-8.2-15.6L22 38.4V50h-6z"
-        className="fill-primary-foreground"
-      />
-      <circle cx="47" cy="20" r="4.5" className="fill-accent" />
+      <defs>
+        <linearGradient id="knokh-gold-mark" x1="12" y1="10" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFD447" />
+          <stop offset="0.48" stopColor="#FF9D18" />
+          <stop offset="1" stopColor="#F06A16" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="15" fill="#17191D" />
+      <path d="M13 15h5.5l4.2 25.2a5 5 0 0 0 4.9 4.2h19.8" fill="none" stroke="url(#knokh-gold-mark)" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M22 23h29l-5.2 15.2H25.1" fill="none" stroke="url(#knokh-gold-mark)" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M34 25v12m0-6 10-8m-10 8 10 8" fill="none" stroke="url(#knokh-gold-mark)" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="29" cy="51" r="3.2" fill="#FFD447" />
+      <circle cx="46" cy="51" r="3.2" fill="#FFD447" />
     </svg>
   );
 }
@@ -33,7 +37,9 @@ export function Wordmark({
 }) {
   return (
     <span className={cn("flex flex-col leading-none", className)}>
-      <span className="wordmark text-xl text-foreground">KNOKH</span>
+      <span className="wordmark text-xl text-foreground">
+        <span className="knokh-gold-text">K</span>NO<span className="text-foreground">KH</span>
+      </span>
       {showTagline ? (
         <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           Your World. One Marketplace.
