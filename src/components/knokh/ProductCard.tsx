@@ -1,4 +1,4 @@
-import { useMutation } from "convex/react";
+import { useMutation } from "@/lib/cloudflare-client";
 import { Heart, Loader2, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
