@@ -1,8 +1,8 @@
 import { useQuery } from "@/lib/cloudflare-client";
 import { CheckCircle2, Clock, PackageCheck, Truck } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import { api } from "@/lib/api";
+import type { Id } from "@/lib/cloudflare-types";
 import {
   Container,
   EmptyState,
