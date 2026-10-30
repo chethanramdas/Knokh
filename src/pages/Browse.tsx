@@ -1,7 +1,7 @@
 import { useQuery } from "@/lib/cloudflare-client";
 import { Layers, PackageSearch } from "lucide-react";
 import { Link } from "react-router";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/api";
 import { Container, EmptyState, LoadingBlock, SectionHeading } from "@/components/knokh/ui";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
