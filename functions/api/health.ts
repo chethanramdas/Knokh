@@ -1,5 +1,7 @@
 interface Env { DB?: D1Database }
 
+type PagesFunction<E> = (context: { request: Request; env: E }) => Response | Promise<Response>;
+
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   if (!env.DB) {
     return Response.json(
