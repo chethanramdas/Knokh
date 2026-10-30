@@ -1,0 +1,1 @@
+type Ref=string;const namespace=(name:string)=>new Proxy({}, {get:(_target,key)=>typeof key==="string"?name+"."+key:undefined});export const api=new Proxy({}, {get:(_target,key)=>typeof key==="string"?namespace(key):undefined}) as Record<string,Record<string,Ref>>;
