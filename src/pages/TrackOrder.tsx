@@ -1,4 +1,4 @@
-import { useQuery } from "convex/react";
+import { useQuery } from "@/lib/cloudflare-client";
 import { Loader2, Search } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
