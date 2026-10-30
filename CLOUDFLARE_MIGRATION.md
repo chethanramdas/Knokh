@@ -1,30 +1,28 @@
-# Cloudflare-native migration (in progress)
+# KNOKH Cloudflare-native migration
 
-This branch is the isolated migration workspace for moving KNOKH from Convex to
-Cloudflare Pages Functions + D1 + R2. The live `main` branch remains unchanged.
+This branch is the isolated migration workspace. Production remains on `main` until the complete migration is built, data has been reviewed/imported, and end-to-end tests pass.
 
-## Foundation added
+## Target architecture
+- Cloudflare Pages + Pages Functions: same-origin storefront API
+- Cloudflare D1: relational catalog, carts, customer/order data
+- Cloudflare R2: product/media files (optional binding; no third-party storage)
+- Cloudflare Turnstile: optional abuse protection
+- COD and manual bank/UPI transfer initially; payment gateways can be added later through a provider interface.
 
-- `migrations/0001_cloudflare_core.sql`: initial D1 relational schema for
-  customers, catalog, carts, wishlists, addresses, orders and store settings.
-- `functions/api/health.ts`: a Pages Function health check that verifies the
-  D1 binding without exposing secrets or customer data.
+## Implemented foundation
+- Initial D1 schema and product catalog endpoint
+- Health endpoint
+- Guest cart API: GET/POST `/api/cart`
+- Guest checkout/order creation and lookup: POST/GET `/api/orders`
+- Checkout currently accepts COD and manual bank transfer only. Manual transfers are not marked as paid automatically.
 
-## Required Cloudflare setup
+## Not yet migrated
+The existing React application still imports Convex hooks and Convex Auth across storefront, customer-account, checkout, and admin screens. Those must be replaced before removing Convex build/codegen dependencies or changing the production Pages build. Supplier connectors, OTP email, automated payment, email notifications, and courier APIs are not part of the no-provider baseline; supplier/order fulfilment becomes admin-managed.
 
-1. Create a **new** D1 database for the migration. Do not point it at production
-   data during development.
-2. In the Pages project `knokh-preview`, add a D1 binding named `DB` to the
-   preview environment. Keep production binding separate until cutover.
-3. Apply `migrations/0001_cloudflare_core.sql` to the preview database.
-4. After deployment, check `/api/health`; it should report
-   `database: connected`.
-
-## Migration safety
-
-This is only the database/API foundation. The current UI still uses Convex.
-Do not remove Convex packages, credentials, or the existing deployment until
-all existing queries, mutations, actions, auth, admin workflows, supplier
-integrations, payments and scheduled jobs have Cloudflare replacements and
-have passed regression tests. Existing Convex data must be exported, mapped,
-validated and backed up before any production cutover.
+## Deployment safety
+1. Keep production deployment and Convex credentials unchanged during migration.
+2. Bind D1 as `DB` to the Pages project (preview and production separately).
+3. Apply migrations to a new D1 database and import reviewed catalog data.
+4. Complete frontend API adapter and admin authorization before public launch.
+5. Run build, API, checkout, inventory concurrency, and browser tests.
+6. Only then switch production build settings and DNS.
