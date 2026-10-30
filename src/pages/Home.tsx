@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { api } from "@/convex/_generated/api";
+import { api } from "@/lib/api";
 import { ProductCard } from "@/components/knokh/ProductCard";
 import { Container, EmptyState, SectionHeading } from "@/components/knokh/ui";
 import { Button } from "@/components/ui/button";
