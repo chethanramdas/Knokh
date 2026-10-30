@@ -56,7 +56,7 @@ function SearchBox({ className }: { className?: string }) {
     return () => window.clearTimeout(timer);
   }, [term]);
 
-  const suggestions = useQuery(
+  const suggestions = useQuery<{products:{_id:string;name:string;slug:string;image?:string;priceMinor:number}[];categories:{name:string;slug:string;image?:string}[]}>(
     api.catalog.searchSuggestions,
     debounced.length >= 2 ? { term: debounced } : "skip",
   );
@@ -281,7 +281,7 @@ function AccountMenu() {
 }
 
 function MobileMenu() {
-  const categories = useQuery(api.catalog.listCategories, {});
+  const categories = useQuery<Array<{_id:string;name:string;slug:string;parentId?:string;productCount?:number;image?:string;icon?:string}>>(api.catalog.listCategories, {});
   const [open, setOpen] = useState(false);
   const { config } = useStore();
   return (
@@ -568,7 +568,7 @@ function Footer() {
 }
 
 export function StoreShell() {
-  const categories = useQuery(api.catalog.listCategories, {});
+  const categories = useQuery<Array<{_id:string;name:string;slug:string;parentId?:string;productCount?:number;image?:string;icon?:string}>>(api.catalog.listCategories, {});
   const { cartCount, config, zone } = useStore();
   const location = useLocation();
   const topCategories = useMemo(
