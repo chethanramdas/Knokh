@@ -54,7 +54,7 @@ function Hero({
   const { config, zone } = useStore();
   const [term, setTerm] = useState("");
   return (
-    <section className="border-b border-border bg-secondary/50">
+    <section className="knokh-hero border-b border-amber-300/50">
       <Container className="grid gap-10 py-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-16">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
@@ -313,7 +313,7 @@ export default function Home() {
             return (
               <section key={section.id} className="py-10">
                 <Container>
-                  <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-primary px-6 py-8 text-primary-foreground sm:flex-row sm:items-center sm:justify-between sm:px-10">
+                  <div className="knokh-promo flex flex-col items-start gap-4 rounded-2xl border border-amber-400/30 px-6 py-8 shadow-xl shadow-amber-900/10 sm:flex-row sm:items-center sm:justify-between sm:px-10">
                     <div>
                       <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
                         {section.title}
