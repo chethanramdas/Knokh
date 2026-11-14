@@ -7,7 +7,7 @@ export function createAuth(pool: Pool, config: Config, deliver: typeof sendEmail
   return betterAuth({
     database: pool, secret: config.AUTH_SECRET, baseURL: config.BETTER_AUTH_URL,
     trustedOrigins: [config.FRONTEND_URL],
-    emailAndPassword: {enabled:true, requireEmailVerification:true,
+    emailAndPassword: {enabled:true,minPasswordLength:12,maxPasswordLength:128, requireEmailVerification:true,
       sendResetPassword: async ({user,url}) => deliver(user.email,'Reset your KNOKH password',url)},
     emailVerification: {sendOnSignUp:true, sendVerificationEmail: async ({user,url}) => deliver(user.email,'Verify your KNOKH email',url)},
     plugins: [emailOTP({otpLength:6,expiresIn:900,allowedAttempts:5,storeOTP:'hashed',resendStrategy:'rotate',rateLimit:{window:60,max:3},sendVerificationOTP: async ({email,otp}) => deliver(email,'Your KNOKH verification code',`Your code is ${otp}.`)})],

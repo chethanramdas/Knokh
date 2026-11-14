@@ -37,6 +37,8 @@ test('real PostgreSQL: auth migrations, verified login, sessions and catalog que
   const email='buyer@example.test';
   await agent.post('/api/auth/sign-up/email').set('Origin',config.FRONTEND_URL).send({name:'Test Buyer',email,password:'Strong-test-password-123!'}).expect(200);
   assert.equal(mail.length,1);
+  await agent.post('/api/auth/sign-in/email').set('Origin',config.FRONTEND_URL).send({email,password:'Strong-test-password-123!'}).expect(403);
+  await request(app).get('/api/admin/access').expect(401);
   const verify=new URL(mail[0].text);
   await agent.get(verify.pathname+verify.search).expect(302);
   await agent.post('/api/auth/sign-in/email').set('Origin',config.FRONTEND_URL).send({email,password:'Strong-test-password-123!'}).expect(200);
@@ -47,9 +49,11 @@ test('real PostgreSQL: auth migrations, verified login, sessions and catalog que
   await agent.patch('/api/account/profile').set('Origin',config.FRONTEND_URL).send({name:'Updated buyer'}).expect(200);
   await agent.patch('/api/account/profile').set('Origin',config.FRONTEND_URL).send({role:'admin'}).expect(400);
   await agent.patch('/api/account/profile').send({name:'Bad origin'}).expect(403);
+  await agent.get('/api/admin/access').expect(403);
   await agent.post('/api/admin/products').set('Origin',config.FRONTEND_URL).send({}).expect(403);
   await bootstrapAdmin(pool,email);
   await assert.rejects(bootstrapAdmin(pool,email),/permanently closed/);
+  await agent.get('/api/admin/access').expect(200);
   const input={name:'Admin product',slug:'admin-product',sku:'ADMIN-1',priceMinor:900,currency:'INR',stock:3,status:'published'};
   await agent.post('/api/admin/products').send(input).expect(403);
   const created=await agent.post('/api/admin/products').set('Origin',config.FRONTEND_URL).send(input).expect(201);
@@ -65,6 +69,15 @@ test('real PostgreSQL: auth migrations, verified login, sessions and catalog que
   const credentials=await pool.query('SELECT password FROM account');assert.ok(credentials.rows[0].password);assert.notEqual(credentials.rows[0].password,'Strong-test-password-123!');
   await agent.post('/api/auth/sign-out').set('Origin',config.FRONTEND_URL).send({}).expect(200);
   const loggedOut=await agent.get('/api/auth/get-session').expect(200);assert.equal(loggedOut.body,null);
+  await agent.post('/api/auth/request-password-reset').set('Origin',config.FRONTEND_URL).send({email,redirectTo:config.FRONTEND_URL+'/migration/reset-password'}).expect(200);
+  const resetUrl=new URL(mail.at(-1)!.text);const resetToken=resetUrl.pathname.split('/').pop();assert.ok(resetToken);
+  await agent.post('/api/auth/reset-password').set('Origin',config.FRONTEND_URL).send({token:resetToken,newPassword:'New-strong-password-456!'}).expect(200);
+  await agent.post('/api/auth/reset-password').set('Origin',config.FRONTEND_URL).send({token:resetToken,newPassword:'New-strong-password-789!'}).expect(400);
+  await agent.post('/api/auth/sign-in/email').set('Origin',config.FRONTEND_URL).send({email,password:'Strong-test-password-123!'}).expect(401);
+  // The sign-in route correctly throttles repeated attempts in this test.
+  await agent.post('/api/auth/sign-in/email').set('Origin',config.FRONTEND_URL).send({email,password:'New-strong-password-456!'}).expect(429);
+  const resetLogin=await auth.api.signInEmail({body:{email,password:'New-strong-password-456!'}});
+  assert.equal(resetLogin.user.email,email);
   const product=await pool.query("INSERT INTO products(name,slug,status) VALUES ('Test product','test-product','published') RETURNING id");
   const variant=await pool.query("INSERT INTO product_variants(product_id,sku,name,price_minor,currency) VALUES ($1,'TEST-1','Default',12000,'INR') RETURNING id",[product.rows[0].id]);
   await pool.query('INSERT INTO product_inventory(variant_id,on_hand,reserved) VALUES ($1,5,1)',[variant.rows[0].id]);

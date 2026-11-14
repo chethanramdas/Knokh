@@ -83,7 +83,8 @@ const AdminMarketing = lazy(() =>
 const AdminCustomers = lazy(() =>
   import("./pages/admin/AdminOps.tsx").then((module) => ({ default: module.AdminCustomers })),
 );
-const SelfHostedAuthPage = lazy(() => import("./pages/SelfHostedAuth.tsx"));
+const SelfHostedAuthPage = lazy(() => import("./pages/PasswordAuth.tsx"));
+const SelfHostedAdminPage = lazy(() => import("./pages/SelfHostedAdmin.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -249,6 +250,8 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="settings" element={<AdminSettings />} />
                 </Route>
 
+                <Route path="/migration/reset-password" element={<SelfHostedAuthPage />} />
+                <Route path="/migration/admin" element={<SelfHostedAdminPage />} />
                 <Route path="/migration/auth" element={<SelfHostedAuthPage />} />
                 <Route path="/auth" element={<AuthPage redirectAfterAuth="/account" />} />
                 <Route path="*" element={<NotFound />} />

@@ -16,6 +16,7 @@ export function adminRouter(pool:Pool,auth:ReturnType<typeof createAuth>,origin:
    res.locals.actorId=session.user.id;next();
   }catch(e){next(e)}
  });
+ router.get('/admin/access',(_req,res)=>{res.json({data:{authorized:true}})});
  router.post('/admin/products',async(req,res,next)=>{
   const input=productInput.safeParse(req.body);
   if(!input.success){res.status(400).json({error:{code:'INVALID_PRODUCT',message:'Product fields are invalid'}});return}
