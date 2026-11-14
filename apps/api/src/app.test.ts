@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import request from 'supertest';
+import {Pool} from 'pg';
+import {readConfig} from './config.js';
+import {createAuth} from './auth.js';
+import {createApp} from './app.js';
+const config=readConfig({NODE_ENV:'test',DATABASE_URL:'postgresql://localhost/knokh',AUTH_SECRET:'test-secret-'.repeat(5),BETTER_AUTH_URL:'http://localhost:3001',FRONTEND_URL:'http://localhost:5173'});
+const auth=createAuth(new Pool({connectionString:config.DATABASE_URL}),config);
+test('liveness and security headers',async()=>{await request(createApp(config,auth,async()=>{})).get('/health/live').expect(200).expect('X-Content-Type-Options','nosniff')});
+test('readiness reports database outage',async()=>{await request(createApp(config,auth,async()=>{throw Error('offline')})).get('/health/ready').expect(503)});
+test('unknown endpoints have consistent JSON errors',async()=>{await request(createApp(config,auth,async()=>{})).get('/missing').expect(404).expect({error:{code:'NOT_FOUND',message:'Endpoint not found'}})});

@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": false,
+    "outDir": "dist",
+    "rootDir": "../..",
+    "noEmitOnError": true,
+    "types": [
+      "node",
+      "bun"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../database/schema.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ]
+}

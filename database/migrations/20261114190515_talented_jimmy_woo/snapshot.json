@@ -1,0 +1,387 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "0ce30938-63ff-4e50-9c93-e9749248c5a4",
+  "prevIds": [
+    "84b755ec-61e5-415c-a134-0059e8746013"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "admin_activity_logs"
+      ],
+      "writes": [
+        "s|tbl|public.admin_activity_logs",
+        "n|tbl|public.admin_activity_logs",
+        "e|tbl|public.admin_activity_logs",
+        "n|rel|public.admin_activity_logs",
+        "n|type|public.admin_activity_logs",
+        "n|rel|public.admin_activity_logs_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "staff_roles"
+      ],
+      "writes": [
+        "s|tbl|public.staff_roles",
+        "n|tbl|public.staff_roles",
+        "e|tbl|public.staff_roles",
+        "n|rel|public.staff_roles",
+        "n|type|public.staff_roles",
+        "n|rel|public.staff_roles_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "admin_activity_logs",
+        "audit_actor_time_idx"
+      ],
+      "writes": [
+        "s|idx|public.audit_actor_time_idx",
+        "n|idx|public.audit_actor_time_idx",
+        "e|idx|public.audit_actor_time_idx",
+        "n|rel|public.audit_actor_time_idx"
+      ],
+      "reads": [
+        "n|tbl|public.admin_activity_logs",
+        "n|sch|public",
+        "n|col|public.admin_activity_logs.actor_id",
+        "n|col|public.admin_activity_logs.created_at"
+      ]
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "product_inventory"
+      ],
+      "writes": [
+        "s|ck|public.product_inventory.inventory_valid"
+      ],
+      "reads": [
+        "n|tbl|public.product_inventory",
+        "n|sch|public",
+        "n|col|public.product_inventory.on_hand",
+        "n|col|public.product_inventory.reserved",
+        "e|col|public.product_inventory.on_hand",
+        "e|col|public.product_inventory.reserved"
+      ],
+      "sqlHash": "9b192835cca0d567"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "products"
+      ],
+      "writes": [
+        "s|ck|public.products.products_status_valid"
+      ],
+      "reads": [
+        "n|tbl|public.products",
+        "n|sch|public",
+        "n|col|public.products.status",
+        "e|col|public.products.status"
+      ],
+      "sqlHash": "8ebe8b15897400e1"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "product_variants"
+      ],
+      "writes": [
+        "s|ck|public.product_variants.variant_price_nonnegative"
+      ],
+      "reads": [
+        "n|tbl|public.product_variants",
+        "n|sch|public",
+        "n|col|public.product_variants.price_minor",
+        "e|col|public.product_variants.price_minor"
+      ],
+      "sqlHash": "ae1ce20f7a7ffae9"
+    },
+    {
+      "statementType": "alter_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "product_variants"
+      ],
+      "writes": [
+        "s|ck|public.product_variants.variant_currency_valid"
+      ],
+      "reads": [
+        "n|tbl|public.product_variants",
+        "n|sch|public",
+        "n|col|public.product_variants.currency",
+        "e|col|public.product_variants.currency"
+      ],
+      "sqlHash": "66d60159dba63aa6"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "admin_activity_logs",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "staff_roles",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_activity_logs",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_activity_logs",
+        "name": "actor_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_activity_logs",
+        "name": "action",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_activity_logs",
+        "name": "entity_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_activity_logs",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "staff_roles",
+        "name": "user_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "staff_roles",
+        "name": "role",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "staff_roles",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_activity_logs",
+        "name": "audit_actor_time_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "actor_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "created_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "admin_activity_logs",
+        "name": "admin_activity_logs_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "staff_roles",
+        "name": "staff_roles_pkey",
+        "columns": [
+          "user_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "staff_roles",
+        "name": "staff_role_valid",
+        "value": "\"role\" IN ('admin','catalog_manager','support')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"product_inventory\",\"inventory_valid\"]",
+      "set": {
+        "value": "\"on_hand\" >= 0 AND \"reserved\" >= 0 AND \"reserved\" <= \"on_hand\""
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"products\",\"products_status_valid\"]",
+      "set": {
+        "value": "\"status\" IN ('draft','published','archived')"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"product_variants\",\"variant_price_nonnegative\"]",
+      "set": {
+        "value": "\"price_minor\" >= 0"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "checks\u0000[\"public\",\"product_variants\",\"variant_currency_valid\"]",
+      "set": {
+        "value": "\"currency\" ~ '^[A-Z]{3}$'"
+      }
+    }
+  ]
+}
