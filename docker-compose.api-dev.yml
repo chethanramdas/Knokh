@@ -1,0 +1,37 @@
+# Development API checkpoint only: the storefront is not migrated yet.
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: knokh
+      POSTGRES_USER: knokh
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - knokh_database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U knokh -d knokh']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://knokh:${POSTGRES_PASSWORD}@postgres:5432/knokh
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET}
+      BETTER_AUTH_URL: http://localhost:3001
+      FRONTEND_URL: http://localhost:5173
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+    ports:
+      - '127.0.0.1:3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  knokh_database:
