@@ -294,7 +294,7 @@ function MobileMenu() {
       <SheetContent side="left" className="w-[86vw] max-w-sm overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-left">
-            <LogoMark className="size-7" />
+            <LogoMark className="w-28 h-auto" />
             <span className="wordmark">{BRAND.name}</span>
           </SheetTitle>
         </SheetHeader>
@@ -679,3 +679,4 @@ export function StoreShell() {
     </div>
   );
 }
+

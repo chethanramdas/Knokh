@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import logo from "@/assets/logo.svg";
+const logo = "/knokh-logo.png";
 import { useAuth } from "@/hooks/use-auth";
 import { Home, LogOut } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -36,10 +36,10 @@ export function LogoDropdown() {
         <Button variant="ghost" size="icon" className="h-10 w-10">
           <img
             src={logo}
-            alt="Logo"
+            alt="KNOKH"
             width={32}
-            height={32}
-            className="rounded-lg"
+            height={16}
+            className="h-auto object-contain"
           />
         </Button>
       </DropdownMenuTrigger>
@@ -64,3 +64,4 @@ export function LogoDropdown() {
     </DropdownMenu>
   );
 }
+

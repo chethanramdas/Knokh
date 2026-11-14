@@ -1,7 +1,7 @@
 // TODO: REPLACE THIS LANDING PAGE WITH AN ELEGANT, THEMATIC, AND WELL-DESIGNED LANDING PAGE RELEVANT TO THE PROJECT
 import { motion } from "framer-motion";
 import { Loader } from "lucide-react";
-import logo from "@/assets/logo.svg";
+const logo = "/knokh-logo.png";
 
 export default function Landing() {
   return (
@@ -20,10 +20,10 @@ export default function Landing() {
         <div className="flex justify-center">
           <img
             src={logo}
-            alt="Lock Icon"
-            width={64}
-            height={64}
-            className="rounded-lg mb-8 mt-24"
+            alt="KNOKH"
+            width={160}
+            height={80}
+            className="h-auto object-contain mb-8 mt-24"
           />
         </div>
         <div className="flex items-center justify-center text-foreground">
@@ -49,3 +49,4 @@ export default function Landing() {
     </motion.div>
   );
 }
+
