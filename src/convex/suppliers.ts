@@ -215,7 +215,7 @@ export const saveSupplier = mutation({
     }
     const supplierId = await ctx.db.insert("suppliers", {
       ...document,
-      apiStatus: connector.envVars.length === 0 ? "connected" : "pending_credentials",
+      apiStatus: connector.id === "manual" ? "connected" : "pending_credentials",
       createdAt: Date.now(),
     });
     // Declare the connection immediately, with the env var NAMES only.
@@ -224,7 +224,7 @@ export const saveSupplier = mutation({
       label: connector.label,
       authType: connector.authType,
       envVars: connector.envVars,
-      status: connector.envVars.length === 0 ? "connected" : "pending_credentials",
+      status: connector.id === "manual" ? "connected" : "pending_credentials",
       createdAt: Date.now(),
     });
     await writeAuditLog(ctx, {
@@ -252,16 +252,22 @@ export const checkSupplierConnection = mutation({
       .take(10);
     const connector = CONNECTORS.find((entry) => entry.id === supplier.connector);
     const missing = (connector?.envVars ?? []).filter((key) => !process.env[key]);
+    // Credential presence is not a live connection test. Only manual fulfilment
+    // is immediately ready; API/feed connectors require a verified request.
     const status =
-      missing.length === 0 ? ("connected" as const) : ("pending_credentials" as const);
+      connector?.id === "manual"
+        ? ("connected" as const)
+        : ("pending_credentials" as const);
     for (const connection of connections) {
       await ctx.db.patch(connection._id, {
         status,
         lastCheckedAt: Date.now(),
         lastError:
-          missing.length === 0
-            ? undefined
-            : `Missing environment variable(s): ${missing.join(", ")}`,
+          missing.length > 0
+            ? `Missing environment variable(s): ${missing.join(", ")}`
+            : connector?.id === "manual"
+              ? undefined
+              : "Credentials present; live supplier connection has not been verified.",
       });
     }
     await ctx.db.patch(supplier._id, { apiStatus: status });
