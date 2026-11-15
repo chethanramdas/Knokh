@@ -9,7 +9,7 @@ import {
   ShieldCheck,
   Truck,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { ProductCard } from "@/components/knokh/ProductCard";
@@ -54,13 +54,13 @@ function Hero({
   const { config, zone } = useStore();
   const [term, setTerm] = useState("");
   return (
-    <section className="border-b border-border bg-secondary/50">
-      <Container className="grid gap-10 py-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-16">
+    <section className="knokh-home-hero">
+      <Container className={`grid min-w-0 gap-8 py-10 sm:py-14 lg:items-center lg:py-16 ${featuredCategories.length ? "lg:grid-cols-[1.15fr_1fr]" : ""}`}>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#764000]">
             {BRAND.tagline}
           </p>
-          <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+          <h1 className="mt-3 max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
             {section?.title ?? "Discover More. Shop Smarter."}
           </h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
@@ -68,7 +68,7 @@ function Hero({
               "A curated multi-category marketplace with transparent pricing and delivery. Browse electronics, fashion, home, beauty, fitness, toys, travel, office and automotive products."}
           </p>
           <form
-            className="mt-6 flex max-w-xl gap-2"
+            className="knokh-hero-search mt-6 flex max-w-xl gap-2"
             onSubmit={(event) => {
               event.preventDefault();
               const query = term.trim();
@@ -76,7 +76,7 @@ function Hero({
             }}
             role="search"
           >
-            <div className="relative flex-1">
+            <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={term}
@@ -102,8 +102,8 @@ function Hero({
           </div>
           <dl className="mt-8 grid max-w-lg grid-cols-3 gap-4 text-sm">
             <div>
-              <dt className="text-muted-foreground">Categories</dt>
-              <dd className="text-lg font-bold">11+</dd>
+              <dt className="text-muted-foreground">Featured categories</dt>
+              <dd className="text-lg font-bold">{featuredCategories.length}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Ships to</dt>
@@ -119,12 +119,12 @@ function Hero({
             </div>
           </dl>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        {featuredCategories.length > 0 ? <div className="grid min-w-0 grid-cols-2 gap-3">
           {featuredCategories.slice(0, 4).map((category) => (
               <Link
                 key={category._id}
                 to={`/category/${category.slug}`}
-                className="group overflow-hidden rounded-xl border border-border bg-card"
+                className="knokh-category-card group overflow-hidden rounded-xl border border-border bg-card"
               >
                 <div className="product-frame">
                   {category.image ? (
@@ -146,7 +146,7 @@ function Hero({
                 </div>
               </Link>
             ))}
-        </div>
+        </div> : null}
       </Container>
     </section>
   );
@@ -168,7 +168,7 @@ function ProductRow({
   emptyHint?: string;
 }) {
   return (
-    <section className="py-10">
+    <section className="knokh-product-section py-10">
       <Container>
         <SectionHeading
           title={title}
@@ -222,6 +222,27 @@ export default function Home() {
   });
 
   const sections = useMemo(() => data?.sections ?? [], [data]);
+  const discoveryRef = useRef<HTMLDivElement>(null);
+  // One shared background spans the shell's header and the actual discovery
+  // height. ResizeObserver tracks images, translated copy and viewport changes.
+  // Only a paint property changes; the observer never changes layout dimensions.
+  useLayoutEffect(() => {
+    const discovery = discoveryRef.current;
+    const shell = discovery?.closest<HTMLElement>(".knokh-homepage");
+    const header = shell?.querySelector<HTMLElement>(".knokh-store-header");
+    const announcement = shell?.querySelector<HTMLElement>(".knokh-announcement");
+    if (!discovery || !shell) return;
+    const update = () => {
+      shell.style.setProperty("--knokh-discovery-end", `${discovery.offsetTop + discovery.offsetHeight}px`);
+      shell.style.setProperty("--knokh-header-height", `${header?.offsetHeight ?? 0}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(discovery);
+    if (header) observer.observe(header);
+    if (announcement) observer.observe(announcement);
+    return () => { observer.disconnect(); shell.style.removeProperty("--knokh-discovery-end"); shell.style.removeProperty("--knokh-header-height"); };
+  }, [data]);
 
   if (data === undefined) {
     return (
@@ -231,9 +252,7 @@ export default function Home() {
     );
   }
 
-  return (
-    <>
-      {sections.map((section) => {
+  const renderSection = (section: (typeof sections)[number]) => {
         switch (section.type) {
           case "hero":
             return (
@@ -265,7 +284,7 @@ export default function Home() {
                       <Link
                         key={category._id}
                         to={`/category/${category.slug}`}
-                        className="group overflow-hidden rounded-xl border border-border bg-card text-center"
+                        className="knokh-category-card group overflow-hidden rounded-xl border border-border bg-card text-center"
                       >
                         <div className="product-frame">
                           {category.image ? (
@@ -313,7 +332,7 @@ export default function Home() {
             return (
               <section key={section.id} className="py-10">
                 <Container>
-                  <div className="flex flex-col items-start gap-4 rounded-2xl border border-border bg-primary px-6 py-8 text-primary-foreground sm:flex-row sm:items-center sm:justify-between sm:px-10">
+                  <div className="knokh-promo-card flex flex-col items-start gap-4 rounded-2xl border border-border px-6 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-10">
                     <div>
                       <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
                         {section.title}
@@ -360,7 +379,7 @@ export default function Home() {
                       <Link
                         key={collection._id}
                         to={`/collections/${collection.slug}`}
-                        className="group overflow-hidden rounded-xl border border-border bg-card"
+                        className="knokh-category-card group overflow-hidden rounded-xl border border-border bg-card"
                       >
                         <div className="aspect-[16/9] overflow-hidden bg-muted">
                           {collection.image ? (
@@ -443,7 +462,13 @@ export default function Home() {
           default:
             return null;
         }
-      })}
+  };
+  const firstProduct = sections.findIndex(section => section.type === "product_row" || section.type === "recently_viewed");
+  const split = firstProduct < 0 ? sections.length : firstProduct;
+  return (
+    <>
+      <div ref={discoveryRef} className="knokh-home-discovery">{sections.slice(0, split).map(renderSection)}</div>
+      <div className="knokh-home-products">{sections.slice(split).map(renderSection)}</div>
     </>
   );
 }

@@ -1,0 +1,102 @@
+/* A single, content-sized sunrise layer. The original logo asset is unchanged. */
+.knokh-homepage {
+  --background: #ffffff;
+  --foreground: #2b2115;
+  --card: #ffffff;
+  --card-foreground: #2b2115;
+  --popover: #ffffff;
+  --popover-foreground: #2b2115;
+  --muted: #fff7e7;
+  --muted-foreground: #59442c;
+  --border: #eadfcb;
+  --input: #96734a;
+  --ring: #764000;
+  --knokh-sunrise: linear-gradient(180deg, #F5A623 0%, #FFD36A 35%, #FFF0C2 72%, #FFFFFF 100%);
+  position: relative;
+  isolation: isolate;
+  color: var(--foreground);
+  background: #fff;
+}
+.knokh-homepage::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--knokh-discovery-end, 100%);
+  background: var(--knokh-sunrise);
+  pointer-events: none;
+  z-index: -1;
+}
+.knokh-homepage .knokh-announcement { background: #fff8e5; color: #59442c; }
+.knokh-homepage .knokh-store-header { background: rgb(255 255 255 / 78%); border-color: rgb(118 64 0 / 22%); }
+.knokh-homepage .knokh-header-row { height: auto; min-height: 5rem; gap: .75rem; }
+.knokh-homepage .knokh-header-row > * { min-width: 0; }
+.knokh-homepage .knokh-header-row button,
+.knokh-homepage .knokh-header-row a[aria-label="Wishlist"],
+.knokh-homepage .knokh-header-row a[aria-label="Cart"] { min-width: 44px; min-height: 44px; }
+.knokh-homepage .knokh-desktop-nav { overflow-x: auto; scrollbar-width: thin; padding-bottom: .75rem; }
+.knokh-homepage .knokh-desktop-nav a { flex-shrink: 0; white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; color: #59442c; }
+.knokh-homepage .knokh-desktop-nav a:hover { color: #2b2115; background: #fff0c2; }
+.knokh-homepage .knokh-search-box input,
+.knokh-homepage .knokh-hero-search input {
+  min-height: 48px;
+  border: 1px solid #96734a;
+  border-radius: 14px;
+  background: #fff;
+  color: #2b2115;
+  box-shadow: 0 4px 14px rgb(91 59 15 / 10%);
+}
+.knokh-homepage input::placeholder { color: #66543b; opacity: 1; }
+.knokh-homepage .knokh-category-chip {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  gap: .5rem; min-height: 44px; padding: .5rem .875rem;
+  border: 1px solid #96734a; border-radius: 999px;
+  background: #fff8e5; color: #2b2115; font-size: .8125rem; font-weight: 600;
+  text-decoration: none;
+}
+.knokh-homepage .knokh-category-chip:hover { background: #fff; }
+.knokh-homepage .knokh-home-hero { background: transparent; }
+.knokh-homepage .knokh-home-discovery { padding-bottom: 2rem; }
+.knokh-homepage .knokh-home-products { background: #fff; }
+.knokh-homepage .knokh-category-card,
+.knokh-homepage .knokh-product-section article {
+  box-shadow: 0 4px 18px rgb(91 59 15 / 6%);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.knokh-homepage .knokh-category-card:hover,
+.knokh-homepage .knokh-product-section article:hover {
+  transform: translateY(-2px); box-shadow: 0 8px 24px rgb(91 59 15 / 10%);
+}
+.knokh-homepage .knokh-promo-card { background: #fff8e5; color: #2b2115; box-shadow: 0 8px 28px rgb(91 59 15 / 10%); }
+.knokh-homepage h1, .knokh-homepage h2, .knokh-homepage p { overflow-wrap: anywhere; }
+.knokh-homepage a:focus-visible, .knokh-homepage button:focus-visible,
+.knokh-homepage input:focus-visible, .knokh-homepage select:focus-visible {
+  outline: 3px solid #764000; outline-offset: 3px; box-shadow: 0 0 0 5px #fff;
+}
+.knokh-homepage [data-slot="button"] { min-height: 44px; }
+.knokh-homepage .knokh-home-products [data-slot="button"] { min-width: 44px; }
+.knokh-skip-link { position: fixed; left: 1rem; top: -8rem; z-index: 100; padding: .75rem 1rem; border-radius: .5rem; background: #fff; color: #2b2115; }
+.knokh-skip-link:focus { top: 1rem; outline: 3px solid #764000; }
+@media (max-width: 639px) {
+  .knokh-homepage .knokh-header-row { gap: .25rem; min-height: 4.5rem; }
+  .knokh-homepage .knokh-header-row a[aria-label="KNOKH home"] img { width: clamp(112px, 34vw, 144px); }
+  .knokh-homepage .knokh-header-wishlist { display: none; } /* Also available in bottom navigation. */
+  .knokh-homepage .knokh-hero-search button { padding-inline: .875rem; }
+  .knokh-homepage .knokh-home-discovery { padding-bottom: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .knokh-homepage *, .knokh-homepage *::before, .knokh-homepage *::after {
+    animation: none !important; transition: none !important; scroll-behavior: auto !important;
+  }
+  .knokh-homepage .knokh-category-card:hover, .knokh-homepage .knokh-product-section article:hover { transform: none; }
+}
+/* Gold remains the brand fill; readable deep gold is used for text on pale surfaces. */
+.knokh-homepage .text-primary { color: #764000; }
+
+.knokh-homepage dl > div, .knokh-homepage .knokh-product-section article { min-width: 0; }
+.knokh-homepage dt, .knokh-homepage dd { overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .knokh-homepage .knokh-product-section article .mt-auto { flex-wrap: wrap; }
+  .knokh-homepage .knokh-product-section article .mt-auto > * { flex-basis: 100%; min-width: 0; }
+}
+
+.knokh-homepage .knokh-store-content { scroll-margin-top: calc(var(--knokh-header-height, 0px) + 1rem); }
