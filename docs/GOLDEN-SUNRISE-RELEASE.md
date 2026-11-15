@@ -45,3 +45,23 @@ publishes `knokh-preview` to `knokh.com`. Verify the exact commit and live page.
 Rollback uses Cloudflare Pages' prior successful deployment or a normal revert of
 this release commit. Do not reset databases, seed products, remove user records,
 or purge unrelated storage/caches.
+
+## Preview checks (2026-11-15)
+Cloudflare Access sign-in succeeded. Cloudflare truncates the branch alias to
+`feature-golden-sunrise-homep.knokh-preview.pages.dev`; the longer branch-name URL
+is not a deployment. The API-provided alias displays the approved logo, exact
+computed gradient and white product boundary. At a 1363px browser viewport the
+page has no horizontal overflow (client/scroll width 1348px).
+
+Search suggestions, Escape dismissal, Enter navigation to search results,
+category navigation, empty-cart view, account/wishlist protection, login page and
+admin/suppliers redirect to login were checked. Keyboard focus outlines and the
+skip link were checked; the latter received content scroll spacing for the sticky
+header. Current catalog/categories are empty, so no real-product cart/wishlist,
+checkout, promotional images or populated category chips were verified.
+
+The browser exposes no viewport-resize API; requested mobile/tablet widths remain
+unverified. Core Web Vitals and a complete WCAG audit were not measured. Console
+errors observed were from the browser extension, not the KNOKH application.
+Full-repository lint has 27 existing errors and 16 warnings in unrelated modules;
+the modified TSX files pass scoped lint. No lint rules were disabled.

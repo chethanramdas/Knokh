@@ -98,3 +98,5 @@
   .knokh-homepage .knokh-product-section article .mt-auto { flex-wrap: wrap; }
   .knokh-homepage .knokh-product-section article .mt-auto > * { flex-basis: 100%; min-width: 0; }
 }
+
+.knokh-homepage .knokh-store-content { scroll-margin-top: calc(var(--knokh-header-height, 0px) + 1rem); }

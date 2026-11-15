@@ -232,13 +232,16 @@ export default function Home() {
     const header = shell?.querySelector<HTMLElement>(".knokh-store-header");
     const announcement = shell?.querySelector<HTMLElement>(".knokh-announcement");
     if (!discovery || !shell) return;
-    const update = () => shell.style.setProperty("--knokh-discovery-end", `${discovery.offsetTop + discovery.offsetHeight}px`);
+    const update = () => {
+      shell.style.setProperty("--knokh-discovery-end", `${discovery.offsetTop + discovery.offsetHeight}px`);
+      shell.style.setProperty("--knokh-header-height", `${header?.offsetHeight ?? 0}px`);
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(discovery);
     if (header) observer.observe(header);
     if (announcement) observer.observe(announcement);
-    return () => { observer.disconnect(); shell.style.removeProperty("--knokh-discovery-end"); };
+    return () => { observer.disconnect(); shell.style.removeProperty("--knokh-discovery-end"); shell.style.removeProperty("--knokh-header-height"); };
   }, [data]);
 
   if (data === undefined) {
