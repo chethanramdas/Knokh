@@ -15,13 +15,12 @@ import {
   Users,
 } from "lucide-react";
 import React, { useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { Link, NavLink, Outlet } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { Container, InfoNote, LoadingBlock, SectionHeading } from "@/components/knokh/ui";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { formatDateTime } from "@/lib/format";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -37,23 +36,21 @@ export function formatBase(amountMinor: number, currency: string): string {
 type QueryResult = {
   currency: string;
   counts: {
-    ordersLastWeek: number;
-    revenueLastWeek: number;
-    estimatedProfitLastWeek: number;
-    productsPublished: number;
+    orders: number;
     pendingFulfilment: number;
     products: number;
     published: number;
     paidOrders: number;
     suppliers: number;
     configuredSuppliers: number;
+    syncFailures: number;
     customers: number;
   };
   finance: {
-    salesBaseMinor: number;
-    costBaseMinor: number;
+    grossSalesBaseMinor: number;
+    costOfGoodsBaseMinor: number;
     refundedBaseMinor: number;
-    profitBaseMinor: number;
+    estimatedGrossProfitBaseMinor: number;
   };
   lowStock: { _id: string; name: string; sku: string; stock: number; status: string }[];
   belowMargin: {
@@ -74,19 +71,21 @@ type QueryResult = {
   }[];
   recentImportJobs: {
     _id: string;
-    jobId: string;
+    type: string;
     status: string;
     createdAt: number;
-    rowCount: number;
-    failedRowCount: number;
+    fileName?: string;
+    createdRows: number;
+    invalidRows: number;
     errorMessage?: string | null;
   }[];
-  updatedAt: number;
 };
 
 export function AdminOverview() {
   const overview = useQuery(api.admin.getOverview, {});
   const seedDemo = useMutation(api.seed.seedDemoCatalog);
+  const removeDemo = useMutation(api.seed.removeDemoCatalog);
+  const [busy, setBusy] = useState<string | null>(null);
   const { config } = useStore();
 
   usePageMeta({
@@ -123,17 +122,17 @@ export function AdminOverview() {
       </InfoNote>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Orders (last week)" value={data.counts.ordersLastWeek.toLocaleString()} />
+        <MetricCard label="Recent orders" value={data.counts.orders.toLocaleString()} />
         <MetricCard
-          label="Paid revenue (last week)"
-          value={formatBase(data.finance.salesBaseMinor, config?.commerce.baseCurrency ?? "INR")}
+          label="Recent paid revenue"
+          value={formatBase(data.finance.grossSalesBaseMinor, config?.commerce.baseCurrency ?? "INR")}
         />
         <MetricCard
-          label="Estimated profit (last week)"
-          value={formatBase(data.finance.profitBaseMinor, config?.commerce.baseCurrency ?? "INR")}
-          note="after supplier cost, payment fees and refunds"
+          label="Estimated recent profit"
+          value={formatBase(data.finance.estimatedGrossProfitBaseMinor, config?.commerce.baseCurrency ?? "INR")}
+          note="after supplier cost and refunds; excludes payment fees and advertising"
         />
-        <MetricCard label="Products published" value={data.counts.productsPublished.toLocaleString()} />
+        <MetricCard label="Products published" value={data.counts.published.toLocaleString()} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -159,7 +158,7 @@ export function AdminOverview() {
 
         <PanelCard
           title="Supplier sync failures"
-          count={data.recentImportJobs.filter((j) => j.status === "failed").length}
+          count={data.counts.syncFailures}
           description="Jobs that could not reach a supplier in the last run."
         >
           <Link to="/admin/suppliers" className="text-sm text-primary hover:underline">
@@ -213,9 +212,9 @@ export function AdminOverview() {
             onClick={async () => {
               setBusy("remove");
               try {
-                const result = await seedDemo({});
+                await removeDemo({});
                 toast.success(
-                  "Demo products and their related records were removed. Non-demo data was left untouched.",
+                  "Demo products were removed. Non-demo data was left untouched.",
                 );
               } catch (error) {
                 toast.error(
@@ -233,9 +232,8 @@ export function AdminOverview() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Last updated {formatDateTime(data.updatedAt) ?? "—"} · {data.counts.ordersLastWeek} orders in the last
-        week · {formatBase(data.finance.salesBaseMinor, config?.commerce.baseCurrency ?? "INR")}{" "}
-        paid revenue in the last week.
+        Order and revenue totals cover up to the 200 most recent orders. Profit is an estimate.
+        Product counts cover up to 1,000 products.
       </p>
     </div>
   );
@@ -276,20 +274,6 @@ function PanelCard({
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-xl border border-border bg-card p-5">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      <div className="mt-3">{children}</div>
-    </section>
-  );
-}
-
-let busy: string | null = null;
-function setBusy(value: string | null) {
-  busy = value;
-}
-
 const ADMIN_SECTIONS = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/orders", label: "Orders", icon: Receipt },
@@ -304,10 +288,8 @@ const ADMIN_SECTIONS = [
 ] as const;
 
 export default function AdminApp() {
-  const [isLoading, setIsLoading] = useState(false);
-  const location = useLocation();
   const { config } = useStore();
-  const user = useAuth().user;
+  const { user, isLoading: isAuthLoading } = useAuth();
 
   usePageMeta({
     title: "KNOKH admin",
@@ -315,6 +297,21 @@ export default function AdminApp() {
     path: "/admin",
     siteUrl: config?.seo.siteUrl,
   });
+
+  if (isAuthLoading) return <LoadingBlock />;
+  if (user?.role !== "admin") {
+    return (
+      <Container className="py-16">
+        <h1 className="text-2xl font-semibold">Administrator access required</h1>
+        <p className="mt-3 text-muted-foreground">
+          This account does not have administrator permissions. Contact the store owner for access.
+        </p>
+        <Link to="/account/profile" className="mt-6 inline-block text-primary underline">
+          Manage your account or sign in with a different email
+        </Link>
+      </Container>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -365,3 +362,4 @@ export default function AdminApp() {
     </div>
   );
 }
+
