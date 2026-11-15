@@ -44,7 +44,10 @@ export function convertMinor(
 
 export type RoundingMode = "none" | "nearest_99" | "nearest_whole";
 
-export function applyRounding(amountMinor: number, mode: RoundingMode | string): number {
+export function applyRounding(
+  amountMinor: number,
+  mode: RoundingMode | string,
+): number {
   if (mode === "nearest_whole") {
     return Math.round(amountMinor / 100) * 100;
   }
@@ -93,7 +96,9 @@ export function taxOnMinor(
 ): number {
   if (ratePercent <= 0) return 0;
   if (inclusive) {
-    return Math.round(lineTotalMinor - lineTotalMinor / (1 + ratePercent / 100));
+    return Math.round(
+      lineTotalMinor - lineTotalMinor / (1 + ratePercent / 100),
+    );
   }
   return Math.round(lineTotalMinor * (ratePercent / 100));
 }
@@ -111,4 +116,33 @@ export function formatMinor(
     maximumFractionDigits: decimals,
   });
   return `${symbol}${value}`;
+}
+
+/** Contribution estimate, not audited profit; inputs share one currency. */
+export function supplierContribution(
+  saleMinor: number,
+  costMinor: number,
+  shippingMinor: number,
+  feesMinor: number,
+  reserveMinor: number,
+  taxMinor = 0,
+) {
+  const values = [
+    saleMinor,
+    costMinor,
+    shippingMinor,
+    feesMinor,
+    reserveMinor,
+    taxMinor,
+  ];
+  if (values.some((v) => !Number.isSafeInteger(v) || v < 0))
+    throw new Error("Use non-negative safe integer minor-unit amounts.");
+  const contributionMinor =
+    saleMinor - costMinor - shippingMinor - feesMinor - reserveMinor - taxMinor;
+  if (!Number.isSafeInteger(contributionMinor))
+    throw new Error("Amount exceeds supported precision.");
+  return {
+    contributionMinor,
+    marginPercent: saleMinor ? (contributionMinor / saleMinor) * 100 : 0,
+  };
 }

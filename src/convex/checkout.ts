@@ -1,5 +1,6 @@
+import { queueFulfilmentForOrder } from "./lib/fulfilment";
 import { v } from "convex/values";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { consumeCart } from "./cart";
 import {
@@ -42,19 +43,21 @@ export type AddressInput = {
 
 export function validateAddress(address: AddressInput): string[] {
   const errors: string[] = [];
-  if (address.fullName.trim().length < 2) errors.push("Enter the recipient's full name.");
+  if (address.fullName.trim().length < 2)
+    errors.push("Enter the recipient's full name.");
   if (address.phone.replace(/\D/g, "").length < 7) {
     errors.push("Enter a reachable phone number with country code.");
   }
   if (address.line1.trim().length < 3) errors.push("Enter the street address.");
   if (address.city.trim().length < 2) errors.push("Enter the city or town.");
-  if (address.state.trim().length < 2) errors.push("Enter the state or region.");
+  if (address.state.trim().length < 2)
+    errors.push("Enter the state or region.");
   const postal = address.postalCode.trim();
   if (address.countryCode.toUpperCase() === "IN") {
     if (!/^[1-9][0-9]{5}$/.test(postal)) {
       errors.push("Enter a valid 6-digit Indian PIN code.");
     }
-  } else if (!/^[A-Za-z0-9][A-Za-z0-9 \-]{2,9}$/.test(postal)) {
+  } else if (!/^[A-Za-z0-9][A-Za-z0-9 -]{2,9}$/.test(postal)) {
     errors.push("Enter a valid postal code.");
   }
   if (address.countryCode.trim().length !== 2) {
@@ -70,7 +73,6 @@ export type ShippingOption = {
   rateMinor: number;
 };
 
-
 /** Shipping options are recomputed on the server for every cart total. */
 export function shippingOptionsFor(args: {
   rateMinor: number;
@@ -80,7 +82,8 @@ export function shippingOptionsFor(args: {
 }): ShippingOption[] {
   const standard: ShippingOption = {
     id: "standard",
-    label: args.zone === "domestic" ? "Standard delivery" : "International standard",
+    label:
+      args.zone === "domestic" ? "Standard delivery" : "International standard",
     etaDays: args.etaDays,
     rateMinor: args.freeQualified ? 0 : args.rateMinor,
   };
@@ -110,7 +113,9 @@ export const getCheckoutQuote = query({
     const settings = await getSettings(ctx);
     const cart = await ctx.db
       .query("carts")
-      .withIndex("by_owner", (q) => q.eq("ownerKey", ownerKey).eq("status", "active"))
+      .withIndex("by_owner", (q) =>
+        q.eq("ownerKey", ownerKey).eq("status", "active"),
+      )
       .unique();
     if (!cart) return null;
     const items = await ctx.db
@@ -132,17 +137,26 @@ export const getCheckoutQuote = query({
 
     const zone = priced.shippingZone;
     const freeQualified =
-      !!zone && zone.freeAboveMinor > 0 && priced.subtotalBaseMinor >= zone.freeAboveMinor;
+      !!zone &&
+      zone.freeAboveMinor > 0 &&
+      priced.subtotalBaseMinor >= zone.freeAboveMinor;
     const options = zone
       ? shippingOptionsFor({
-          rateMinor: convertMinor(zone.rateMinor, settings.commerce.baseCurrency, currency, settings),
+          rateMinor: convertMinor(
+            zone.rateMinor,
+            settings.commerce.baseCurrency,
+            currency,
+            settings,
+          ),
           etaDays: zone.etaDays,
           zone: zone.zone,
           freeQualified,
         })
       : [];
     const selectedOption =
-      options.find((option) => option.id === args.shippingMethodId) ?? options[0] ?? null;
+      options.find((option) => option.id === args.shippingMethodId) ??
+      options[0] ??
+      null;
 
     // Provider eligibility is derived from configuration status + destination.
     const onlineProviders = settings.payments.providers
@@ -186,7 +200,10 @@ export const getCheckoutQuote = query({
             ? { id: "cod", label: "Cash on delivery" }
             : null,
         testGateway: settings.payments.testGatewayEnabled
-          ? { id: "test_gateway", label: "Test gateway (sandbox, no real money)" }
+          ? {
+              id: "test_gateway",
+              label: "Test gateway (sandbox, no real money)",
+            }
           : null,
       },
       guestCheckoutEnabled: settings.commerce.guestCheckoutEnabled,
@@ -204,7 +221,11 @@ export const placeOrder = mutation({
   args: {
     guestKey: v.optional(v.string()),
     currency: v.optional(v.string()),
-    contact: v.object({ name: v.string(), email: v.string(), phone: v.string() }),
+    contact: v.object({
+      name: v.string(),
+      email: v.string(),
+      phone: v.string(),
+    }),
     shippingAddress: addressValidator,
     shippingMethodId: v.string(),
     paymentMethod: v.union(v.literal("online"), v.literal("cod")),
@@ -219,7 +240,9 @@ export const placeOrder = mutation({
 
     const cart = await ctx.db
       .query("carts")
-      .withIndex("by_owner", (q) => q.eq("ownerKey", ownerKey).eq("status", "active"))
+      .withIndex("by_owner", (q) =>
+        q.eq("ownerKey", ownerKey).eq("status", "active"),
+      )
       .unique();
     if (!cart) throw new Error("Your cart is empty.");
 
@@ -230,9 +253,12 @@ export const placeOrder = mutation({
     if (items.length === 0) throw new Error("Your cart is empty.");
 
     const email = args.contact.email.trim().toLowerCase();
-    if (!isEmailish(email)) throw new Error("Enter a valid email address for the order updates.");
+    if (!isEmailish(email))
+      throw new Error("Enter a valid email address for the order updates.");
     if (!user && !settings.commerce.guestCheckoutEnabled) {
-      throw new Error("Guest checkout is disabled. Please sign in to continue.");
+      throw new Error(
+        "Guest checkout is disabled. Please sign in to continue.",
+      );
     }
     const addressErrors = validateAddress(args.shippingAddress);
     if (addressErrors.length > 0) throw new Error(addressErrors.join(" "));
@@ -259,20 +285,29 @@ export const placeOrder = mutation({
     }
 
     const freeQualified =
-      zone.freeAboveMinor > 0 && priced.subtotalBaseMinor >= zone.freeAboveMinor;
+      zone.freeAboveMinor > 0 &&
+      priced.subtotalBaseMinor >= zone.freeAboveMinor;
     const options = shippingOptionsFor({
-      rateMinor: convertMinor(zone.rateMinor, settings.commerce.baseCurrency, currency, settings),
+      rateMinor: convertMinor(
+        zone.rateMinor,
+        settings.commerce.baseCurrency,
+        currency,
+        settings,
+      ),
       etaDays: zone.etaDays,
       zone: zone.zone,
       freeQualified,
     });
     const shippingOption =
-      options.find((option) => option.id === args.shippingMethodId) ?? options[0];
+      options.find((option) => option.id === args.shippingMethodId) ??
+      options[0];
     if (!shippingOption) throw new Error("Choose a shipping method.");
 
     if (args.paymentMethod === "cod") {
       if (!settings.commerce.codEnabled || !zone.codAvailable) {
-        throw new Error("Cash on delivery is not available for this destination.");
+        throw new Error(
+          "Cash on delivery is not available for this destination.",
+        );
       }
     }
 
@@ -287,13 +322,19 @@ export const placeOrder = mutation({
       if (!isTestGateway) {
         if (!provider) throw new Error("Choose a payment method.");
         if (!provider.enabled) {
-          throw new Error(`${provider.label} is not enabled for this store yet.`);
+          throw new Error(
+            `${provider.label} is not enabled for this store yet.`,
+          );
         }
         if (!provider.countries.includes(countryCode)) {
-          throw new Error(`${provider.label} cannot process payments for ${countryCode}.`);
+          throw new Error(
+            `${provider.label} cannot process payments for ${countryCode}.`,
+          );
         }
         if (!provider.currencies.includes(currency)) {
-          throw new Error(`${provider.label} does not support ${currency} payments.`);
+          throw new Error(
+            `${provider.label} does not support ${currency} payments.`,
+          );
         }
         if (providerRuntimeStatus(provider.envVars) !== "configured") {
           throw new Error(
@@ -306,14 +347,20 @@ export const placeOrder = mutation({
     // ---- Stock reservation (atomic with order creation) ----
     for (const line of priced.lines) {
       const product = await ctx.db.get(line.productId);
-      if (!product) throw new Error("An item in your cart is no longer available.");
+      if (!product)
+        throw new Error("An item in your cart is no longer available.");
 
       if (line.variantSku) {
         const variants = [...(product.variants ?? [])];
-        const index = variants.findIndex((entry) => entry.sku === line.variantSku);
-        if (index < 0) throw new Error(`${line.name}: the selected variant is gone.`);
+        const index = variants.findIndex(
+          (entry) => entry.sku === line.variantSku,
+        );
+        if (index < 0)
+          throw new Error(`${line.name}: the selected variant is gone.`);
         if (variants[index].stock < line.quantity) {
-          throw new Error(`${line.name}: only ${variants[index].stock} left in stock.`);
+          throw new Error(
+            `${line.name}: only ${variants[index].stock} left in stock.`,
+          );
         }
         variants[index] = {
           ...variants[index],
@@ -341,7 +388,10 @@ export const placeOrder = mutation({
 
     const taxMinor = priced.taxMinor;
     const totalMinor = priced.taxInclusive
-      ? priced.subtotalMinor - priced.discountMinor + shippingOption.rateMinor + priced.dutyMinor
+      ? priced.subtotalMinor -
+        priced.discountMinor +
+        shippingOption.rateMinor +
+        priced.dutyMinor
       : priced.subtotalMinor -
         priced.discountMinor +
         taxMinor +
@@ -475,6 +525,10 @@ export const placeOrder = mutation({
       });
     }
 
+    if (args.paymentMethod === "cod") {
+      const createdOrder = await ctx.db.get(orderId);
+      if (createdOrder) await queueFulfilmentForOrder(ctx, createdOrder);
+    }
     await consumeCart(ctx, cart);
 
     if (args.marketingConsent && user) {

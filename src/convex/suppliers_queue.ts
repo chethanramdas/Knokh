@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { requireAdmin } from "./lib/auth";
 import { internalMutation, internalQuery } from "./_generated/server";
 
 /** Queued sync jobs that are due, with their supplier's connector id. */
@@ -15,7 +16,12 @@ export const dueSyncJobs = internalQuery({
       if (job.scheduledFor > now) continue;
       const supplier = await ctx.db.get(job.supplierId);
       if (!supplier) continue;
-      if (supplier.apiStatus === "disconnected") continue;
+      if (
+        supplier.apiStatus === "disconnected" ||
+        supplier.connector !== "feed_url" ||
+        !["stock", "price", "full_catalog"].includes(job.type)
+      )
+        continue;
       out.push({
         _id: job._id,
         supplierId: job.supplierId,
@@ -54,7 +60,9 @@ export const supplierOrderDetails = internalQuery({
       orderNumber: order?.orderNumber ?? "—",
       shippingAddress: order?.shippingAddress ?? null,
       items,
-      alreadySubmitted: !["queued", "needs_manual_fulfilment"].includes(supplierOrder.status),
+      alreadySubmitted: !["queued", "needs_manual_fulfilment"].includes(
+        supplierOrder.status,
+      ),
     };
   },
 });
@@ -89,5 +97,14 @@ export const retireStaleCarts = internalMutation({
       }
     }
     return { retired };
+  },
+});
+
+export const authorizeForward = internalQuery({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    return null;
   },
 });

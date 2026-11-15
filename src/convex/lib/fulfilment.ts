@@ -19,6 +19,13 @@ export async function queueFulfilmentForOrder(
   ctx: MutationCtx,
   order: Doc<"orders">,
 ): Promise<{ queued: number; manual: number; unmapped: number }> {
+  if (
+    order.fulfilmentStatus === "cancelled" ||
+    order.fulfilmentStatus === "returned" ||
+    (order.paymentStatus !== "paid" &&
+      !(order.paymentMethod === "cod" && order.paymentStatus === "cod_pending"))
+  )
+    return { queued: 0, manual: 0, unmapped: 0 };
   const items = await ctx.db
     .query("order_items")
     .withIndex("by_order", (q) => q.eq("orderId", order._id))
@@ -47,12 +54,15 @@ export async function queueFulfilmentForOrder(
     const idempotencyKey = `${order._id}:${supplier._id}`;
     const existing = await ctx.db
       .query("supplier_orders")
-      .withIndex("by_idempotency", (q) => q.eq("idempotencyKey", idempotencyKey))
+      .withIndex("by_idempotency", (q) =>
+        q.eq("idempotencyKey", idempotencyKey),
+      )
       .unique();
     if (existing) continue;
 
-    const canAutomate =
-      supplier.apiStatus === "connected" && supplier.supportsOrderApi;
+    // No live supplier order adapter has passed account-specific verification.
+    // Keep every supplier group in the explicit, zero-subscription manual queue.
+    const canAutomate = false;
     const status = canAutomate ? "queued" : "needs_manual_fulfilment";
 
     await ctx.db.insert("supplier_orders", {
@@ -92,7 +102,9 @@ export async function queueFulfilmentForOrder(
       type: "fulfilment_task",
       title: `Order ${order.orderNumber} needs manual attention`,
       body: `${manual} supplier group(s) have no automated connection${
-        unmapped > 0 ? `, and ${unmapped} item(s) are not mapped to a supplier` : ""
+        unmapped > 0
+          ? `, and ${unmapped} item(s) are not mapped to a supplier`
+          : ""
       }.`,
       link: `/admin/orders/${order._id}`,
     });
@@ -102,7 +114,9 @@ export async function queueFulfilmentForOrder(
 }
 
 /** Canonical supplier-order status for a shipment update. */
-export function shipmentStatusFromSupplier(status: string): Doc<"shipments">["status"] {
+export function shipmentStatusFromSupplier(
+  status: string,
+): Doc<"shipments">["status"] {
   switch (status) {
     case "shipped":
     case "in_transit":

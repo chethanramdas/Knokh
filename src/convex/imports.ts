@@ -28,14 +28,12 @@ async function buildContext(
   const settings = await getSettings(ctx);
   const categories = await ctx.db.query("categories").take(300);
   const brands = await ctx.db.query("brands").take(300);
-  const products = await ctx.db.query("products").take(1000);
   const existingSkus: Record<string, string> = {};
-  for (const product of products) {
-    existingSkus[normalizeSku(product.sku)] = String(product._id);
-  }
   const defaultCurrency =
     args.defaultCurrency &&
-    settings.currencies.some((currency) => currency.code === args.defaultCurrency)
+    settings.currencies.some(
+      (currency) => currency.code === args.defaultCurrency,
+    )
       ? args.defaultCurrency
       : settings.commerce.baseCurrency;
 
@@ -50,7 +48,10 @@ async function buildContext(
       name: category.name,
       slug: category.slug,
     })),
-    knownBrands: brands.map((brand) => ({ name: brand.name, slug: brand.slug })),
+    knownBrands: brands.map((brand) => ({
+      name: brand.name,
+      slug: brand.slug,
+    })),
     existingSkus,
     maxRows: settings.commerce.maxImportRows,
   };
@@ -69,6 +70,13 @@ async function ingestRows(
   void settings;
   let valid = 0;
   let invalid = 0;
+  const previousRows = await ctx.db
+    .query("import_job_rows")
+    .withIndex("by_job", (q) => q.eq("jobId", jobId))
+    .take(context.maxRows);
+  const stagedSkus = new Set(
+    previousRows.map((row) => row.sku).filter(Boolean),
+  );
 
   for (let index = 0; index < rows.length; index++) {
     const raw = rows[index];
@@ -86,15 +94,30 @@ async function ingestRows(
       continue;
     }
     const rawRecord = raw as Record<string, unknown>;
+    const candidateSku = normalizeSku(String(rawRecord[mapping.sku] ?? ""));
+    const currentProduct = candidateSku
+      ? await ctx.db
+          .query("products")
+          .withIndex("by_sku", (q) => q.eq("sku", candidateSku))
+          .unique()
+      : null;
+    if (currentProduct)
+      context.existingSkus[candidateSku] = String(currentProduct._id);
     const result = normalizeRow(rawRecord, mapping, context, rowNumber);
-    if (result.status === "valid" && result.normalized) {
-      context.existingSkus[result.normalized.sku] = "pending-in-this-import";
+    if (stagedSkus.has(candidateSku)) {
+      result.status = "invalid";
+      result.normalized = null;
+      result.errors.push("Duplicate SKU in this import. Keep one row per SKU.");
     }
+    if (result.status === "valid" && result.normalized)
+      stagedSkus.add(result.normalized.sku);
     await ctx.db.insert("import_job_rows", {
       jobId,
       rowNumber,
       rawJson: JSON.stringify(rawRecord).slice(0, 4000),
-      normalizedJson: result.normalized ? JSON.stringify(result.normalized) : undefined,
+      normalizedJson: result.normalized
+        ? JSON.stringify(result.normalized)
+        : undefined,
       status: result.status,
       errors: result.errors,
       warnings: result.warnings,
@@ -114,7 +137,11 @@ export const startImport = mutation({
     fileSizeBytes: v.number(),
     rows: v.array(v.any()),
     mapping: v.optional(v.record(v.string(), v.string())),
-    mode: v.union(v.literal("create_only"), v.literal("update_only"), v.literal("upsert")),
+    mode: v.union(
+      v.literal("create_only"),
+      v.literal("update_only"),
+      v.literal("upsert"),
+    ),
     publish: v.boolean(),
     supplierId: v.optional(v.id("suppliers")),
     defaultCurrency: v.optional(v.string()),
@@ -123,6 +150,10 @@ export const startImport = mutation({
     const admin = await requireAdmin(ctx);
     const settings = await getSettings(ctx);
 
+    if (!Number.isSafeInteger(args.fileSizeBytes) || args.fileSizeBytes < 0)
+      throw new Error("Invalid file size.");
+    if (args.supplierId && !(await ctx.db.get(args.supplierId)))
+      throw new Error("Supplier not found.");
     if (args.fileSizeBytes > settings.commerce.maxImportFileBytes) {
       throw new Error(
         `The file is larger than the configured limit of ${Math.round(
@@ -130,7 +161,8 @@ export const startImport = mutation({
         )} MB. Split it into smaller files.`,
       );
     }
-    if (args.rows.length === 0) throw new Error("The file contains no data rows.");
+    if (args.rows.length === 0)
+      throw new Error("The file contains no data rows.");
     if (args.rows.length > settings.commerce.maxImportRows) {
       throw new Error(
         `The file has ${args.rows.length} rows, which exceeds the configured limit of ${settings.commerce.maxImportRows}. Split the file and import it in parts.`,
@@ -171,7 +203,14 @@ export const startImport = mutation({
       createdAt: Date.now(),
     });
 
-    const { valid, invalid } = await ingestRows(ctx, jobId, args.rows, mapping, context, 1);
+    const { valid, invalid } = await ingestRows(
+      ctx,
+      jobId,
+      args.rows,
+      mapping,
+      context,
+      1,
+    );
     await ctx.db.patch(jobId, { validRows: valid, invalidRows: invalid });
 
     await writeAuditLog(ctx, {
@@ -183,7 +222,12 @@ export const startImport = mutation({
       summary: `Validated ${args.fileName}: ${valid} valid, ${invalid} invalid row(s)`,
     });
 
-    return { jobId, validRows: valid, invalidRows: invalid, total: args.rows.length };
+    return {
+      jobId,
+      validRows: valid,
+      invalidRows: invalid,
+      total: args.rows.length,
+    };
   },
 });
 
@@ -193,14 +237,27 @@ export const commitImportBatch = mutation({
     const admin = await requireAdmin(ctx);
     const job = await ctx.db.get(args.jobId);
     if (!job) throw new Error("Import job not found.");
+    if (job.status === "completed")
+      return {
+        processed: 0,
+        created: 0,
+        updated: 0,
+        failed: 0,
+        remaining: 0,
+        done: true,
+      };
     if (job.status === "rolled_back") {
-      throw new Error("This import was rolled back and cannot be committed again.");
+      throw new Error(
+        "This import was rolled back and cannot be committed again.",
+      );
     }
     const batchSize = Math.min(Math.max(args.batchSize ?? 25, 1), 50);
 
     const pending = await ctx.db
       .query("import_job_rows")
-      .withIndex("by_job_status", (q) => q.eq("jobId", job._id).eq("status", "valid"))
+      .withIndex("by_job_status", (q) =>
+        q.eq("jobId", job._id).eq("status", "valid"),
+      )
       .take(batchSize);
 
     await ctx.db.patch(job._id, {
@@ -214,7 +271,9 @@ export const commitImportBatch = mutation({
 
     for (const row of pending) {
       try {
-        const normalized = JSON.parse(row.normalizedJson ?? "null") as NormalizedRow | null;
+        const normalized = JSON.parse(
+          row.normalizedJson ?? "null",
+        ) as NormalizedRow | null;
         if (!normalized) {
           await ctx.db.patch(row._id, {
             status: "failed",
@@ -247,13 +306,17 @@ export const commitImportBatch = mutation({
 
     const remaining = await ctx.db
       .query("import_job_rows")
-      .withIndex("by_job_status", (q) => q.eq("jobId", job._id).eq("status", "valid"))
+      .withIndex("by_job_status", (q) =>
+        q.eq("jobId", job._id).eq("status", "valid"),
+      )
       .take(1);
 
     await ctx.db.patch(job._id, {
       createdRows: job.createdRows + created,
       updatedRows: job.updatedRows + updated,
       skippedRows: job.skippedRows + failed,
+      status: remaining.length === 0 ? "completed" : "importing",
+      finishedAt: remaining.length === 0 ? Date.now() : undefined,
     });
 
     return {
@@ -305,14 +368,26 @@ async function applyImportRow(
     .join(" ")
     .slice(0, 1500);
 
-  const existing = row.existingProductId
-    ? await ctx.db.get(row.existingProductId as Id<"products">)
-    : await ctx.db
-        .query("products")
-        .withIndex("by_sku", (q) => q.eq("sku", row.sku))
-        .unique();
+  const existing = await ctx.db
+    .query("products")
+    .withIndex("by_sku", (q) => q.eq("sku", row.sku))
+    .unique();
+  const job = await ctx.db.get(args.jobId);
+  if (!job) throw new Error("Import job no longer exists.");
+  if (existing && job.mode === "create_only")
+    throw new Error(
+      "SKU already exists; create-only import cannot overwrite it.",
+    );
+  if (!existing && job.mode === "update_only")
+    throw new Error(
+      "SKU no longer exists; update-only import cannot create it.",
+    );
+  if (existing && existing.currency !== row.currency)
+    throw new Error(
+      "Currency changes require a separate explicit product edit.",
+    );
 
-  if (existing && row.action !== "create") {
+  if (existing) {
     const previousSnapshot = JSON.stringify({
       name: existing.name,
       summary: existing.summary,
@@ -341,7 +416,9 @@ async function applyImportRow(
       images:
         row.images.length > 0
           ? [
-              ...existing.images.filter((image) => !row.images.includes(image.url)),
+              ...existing.images.filter(
+                (image) => !row.images.includes(image.url),
+              ),
               ...row.images.map((url) => ({ url, alt: row.name, position: 0 })),
             ].slice(0, 8)
           : existing.images,
@@ -352,14 +429,18 @@ async function applyImportRow(
       supplierSku: row.supplierSku ?? existing.supplierSku,
       supplierProductId: row.supplierProductId ?? existing.supplierProductId,
       weightGrams: row.weightGrams ?? existing.weightGrams,
-      deliveryEstimateDays: row.deliveryEstimateDays ?? existing.deliveryEstimateDays,
+      deliveryEstimateDays:
+        row.deliveryEstimateDays ?? existing.deliveryEstimateDays,
       shipsTo: row.shipsTo ?? existing.shipsTo,
       tags: row.tags.length > 0 ? row.tags : existing.tags,
       searchText,
       updatedAt: now,
     });
 
-    if (existing.priceMinor !== row.priceMinor || existing.costMinor !== row.costMinor) {
+    if (
+      existing.priceMinor !== row.priceMinor ||
+      existing.costMinor !== row.costMinor
+    ) {
       await ctx.db.insert("price_history", {
         productId: existing._id,
         oldPriceMinor: existing.priceMinor,
@@ -404,7 +485,11 @@ async function applyImportRow(
     costMinor: row.costMinor,
     currency: row.currency || settings.commerce.baseCurrency,
     stock: row.stock,
-    images: row.images.map((url, index) => ({ url, alt: row.name, position: index })),
+    images: row.images.map((url, index) => ({
+      url,
+      alt: row.name,
+      position: index,
+    })),
     categoryId,
     brandId,
     supplierId: args.supplierId,
@@ -469,10 +554,15 @@ export const finalizeImport = mutation({
     if (!job) throw new Error("Import job not found.");
     const failedRows = await ctx.db
       .query("import_job_rows")
-      .withIndex("by_job_status", (q) => q.eq("jobId", job._id).eq("status", "failed"))
+      .withIndex("by_job_status", (q) =>
+        q.eq("jobId", job._id).eq("status", "failed"),
+      )
       .take(500);
     await ctx.db.patch(job._id, {
-      status: failedRows.length > 0 && job.createdRows + job.updatedRows === 0 ? "failed" : "completed",
+      status:
+        failedRows.length > 0 && job.createdRows + job.updatedRows === 0
+          ? "failed"
+          : "completed",
       finishedAt: Date.now(),
     });
     await writeAuditLog(ctx, {
@@ -514,15 +604,25 @@ export const rollbackImport = mutation({
         } else {
           skipped += 1;
         }
-      } else if (row.status === "updated" && row.productId && row.previousSnapshot) {
+      } else if (
+        row.status === "updated" &&
+        row.productId &&
+        row.previousSnapshot
+      ) {
         const snapshot = JSON.parse(row.previousSnapshot);
-        await ctx.db.patch(row.productId, { ...snapshot, updatedAt: Date.now() });
+        await ctx.db.patch(row.productId, {
+          ...snapshot,
+          updatedAt: Date.now(),
+        });
         await ctx.db.patch(row._id, { status: "skipped" });
         restored += 1;
       }
     }
 
-    await ctx.db.patch(job._id, { status: "rolled_back", finishedAt: Date.now() });
+    await ctx.db.patch(job._id, {
+      status: "rolled_back",
+      finishedAt: Date.now(),
+    });
     await writeAuditLog(ctx, {
       actorId: admin._id,
       actorEmail: admin.email,
@@ -551,7 +651,10 @@ export const retryFailedRows = mutation({
         if (!row.normalizedJson) {
           await ctx.db.patch(row._id, {
             status: "invalid",
-            errors: [...row.errors, "This row has no normalised data to retry."],
+            errors: [
+              ...row.errors,
+              "This row has no normalised data to retry.",
+            ],
           });
           continue;
         }
@@ -583,7 +686,9 @@ export const getImportJob = query({
       .withIndex("by_job", (q) => q.eq("jobId", job._id))
       .take(500);
     const filtered = args.onlyIssues
-      ? rows.filter((row) => row.status === "invalid" || row.status === "failed")
+      ? rows.filter(
+          (row) => row.status === "invalid" || row.status === "failed",
+        )
       : rows;
     return {
       job,
@@ -632,7 +737,10 @@ export const importTemplateCsv = query({
     return {
       csv: toCsv(IMPORT_TEMPLATE_HEADERS, [
         Object.fromEntries(
-          IMPORT_TEMPLATE_HEADERS.map((header, index) => [header, example[index]]),
+          IMPORT_TEMPLATE_HEADERS.map((header, index) => [
+            header,
+            example[index],
+          ]),
         ),
       ]),
       headers: IMPORT_TEMPLATE_HEADERS,
@@ -649,7 +757,10 @@ export const importErrorReport = query({
       .withIndex("by_job", (q) => q.eq("jobId", args.jobId))
       .take(1000);
     const problems = rows.filter(
-      (row) => row.status === "invalid" || row.status === "failed" || row.warnings.length > 0,
+      (row) =>
+        row.status === "invalid" ||
+        row.status === "failed" ||
+        row.warnings.length > 0,
     );
     return {
       csv: toCsv(
@@ -759,13 +870,18 @@ export const createDraftFromPreview = mutation({
   handler: async (ctx, args) => {
     const admin = await requireAdmin(ctx);
     const settings = await getSettings(ctx);
-    const sku = normalizeSku(args.sku ?? `URL-${slugify(args.title).slice(0, 24)}-${Date.now() % 100000}`);
+    const sku = normalizeSku(
+      args.sku ??
+        `URL-${slugify(args.title).slice(0, 24)}-${Date.now() % 100000}`,
+    );
     const existing = await ctx.db
       .query("products")
       .withIndex("by_sku", (q) => q.eq("sku", sku))
       .unique();
     if (existing) {
-      throw new Error(`SKU ${sku} already exists (product "${existing.name}").`);
+      throw new Error(
+        `SKU ${sku} already exists (product "${existing.name}").`,
+      );
     }
     const slug = await uniqueSlug(ctx, slugify(args.title));
     const now = Date.now();
@@ -779,7 +895,10 @@ export const createDraftFromPreview = mutation({
       priceMinor:
         args.priceMinor ??
         (args.costMinor
-          ? Math.round(args.costMinor * (1 + settings.pricing.defaultMarkupPercent / 100))
+          ? Math.round(
+              args.costMinor *
+                (1 + settings.pricing.defaultMarkupPercent / 100),
+            )
           : 0),
       costMinor: args.costMinor,
       currency: args.currency ?? settings.commerce.baseCurrency,
