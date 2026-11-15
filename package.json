@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "node scripts/codegen-offline.mjs && tsc -b",
+    "test:contrast": "node scripts/check-homepage-contrast.mjs"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.90",
