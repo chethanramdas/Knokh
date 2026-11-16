@@ -193,6 +193,7 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/checkout/return" element={<CheckoutReturn />} />
                   <Route path="/checkout/sandbox/:orderId" element={<SandboxCheckout />} />
+                  <Route path="/order/:orderId" element={<OrderConfirmation />} />
                   <Route path="/order/:orderId/confirmation" element={<OrderConfirmation />} />
                   <Route path="/track-order" element={<TrackOrder />} />
                   <Route path="/info/:slug" element={<Info />} />
