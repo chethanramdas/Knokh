@@ -57,3 +57,18 @@ These tests do not demonstrate Qikink/DeoDap sandbox connectivity, live feed del
 The branch incorporates the production Golden Sunrise homepage unchanged. Dependency updates remove reported production dependency vulnerabilities while retaining compatible Convex Auth v1; see SUPPLIER-SECURITY-AUDIT.md. Regression tests now include actual OTP actions with an intercepted email transport, session refresh/logout, real CSV/XLSX bytes, customer COD checkout, stock reservation, and supplier task creation. Scheduled jobs are restricted by due time and unsupported operations are marked skipped without external purchasing.
 
 Staging target identified in the owner's account: `dev/user-2` / `tame-lemur-590`. It is separate from production `agreeable-caterpillar-156` and was never deployed when inspected. No production data has been copied there. Deployment and end-to-end staging checks remain pending deployment credentials. The Convex CLI's CI mode disables optional CLI Sentry initialization according to the installed official source; cloud staging can use this mode without the previously blocked telemetry path.
+
+## Cloud staging push — 2026-11-16
+The supplier functions and schema were successfully pushed to isolated deployment
+`tame-lemur-590` using an approved one-hour staging-only credential. This caught
+and fixed a missing Node runtime directive in the bounded HTTPS helper that
+frontend builds and in-memory tests could not detect. All 43 isolated tests and
+strict type checks still pass. The test harness and authenticated fixture feed
+are deployed from a separate staging-only source copy; neither is part of the
+production release tree. No production data was imported into staging.
+
+Real staging email delivery is not yet verified: automatic approval review
+rejected copying the production Resend secret into staging. No production email
+credential was copied. A separately approved sending credential is required for
+real email delivery tests. Other cloud integration test results are recorded in
+the PR before merge; a frontend preview does not establish provider connectivity.

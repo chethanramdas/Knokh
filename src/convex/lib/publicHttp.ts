@@ -1,3 +1,5 @@
+"use node";
+
 /** Node-action-only, bounded HTTPS fetch with DNS pinning and redirect checks. */
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
