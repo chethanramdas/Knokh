@@ -15,7 +15,9 @@ Isolated tests exercise actual Convex Auth sign-in and verification actions, has
 
 Supplier tests cover backend admin enforcement, real CSV/XLSX byte parsing and import commit, duplicate SKUs, COD checkout and transactional stock reservation, split manual shipments, job idempotency, cost/stock flags, currency boundaries, contribution costs and public HTTPS address guards. Automatic external supplier purchasing remains disabled.
 
-A cloud staging push and authenticated browser testing are still required before production deployment. Never infer a backend deployment from Cloudflare's frontend build. Temporary staging credentials must be deployment-scoped, short-lived and revoked after verification. Production data is not copied into test fixtures or logs.
+A cloud staging push and eleven live integration checks now pass, including actual signed-session authentication, server-side authorization, imports, checkout, stock, supplier feed transport and manual shipment tracking. A missing Node runtime directive caught by the real deployment was corrected. Authenticated browser checks and actual Resend OTP delivery remain release gates; the isolated email transport tests do not establish delivery. See SUPPLIERS.md for the precise staging evidence and production backup verification.
+
+Never infer a backend deployment from Cloudflare's frontend build. Temporary staging credentials must be deployment-scoped, short-lived and revoked or allowed to expire after verification. Production data is not copied into test fixtures or logs. The temporary test harness and feed exist only in a separate staging-only source copy, not the release tree. Production supplier connections and automatic purchasing remain disabled/unverified until separately authorised and tested.
 
 ## Primary references
 - https://github.com/get-convex/convex-auth/blob/main/CHANGELOG.md

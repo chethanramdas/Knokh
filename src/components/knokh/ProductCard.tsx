@@ -23,7 +23,7 @@ export function ProductCard({
   product: ProductCardData;
   className?: string;
 }) {
-  const { money, isWishlisted, toggleWishlist, zone } = useStore();
+  const { guestKey, money, isWishlisted, toggleWishlist, zone } = useStore();
   const addToCart = useMutation(api.cart.addToCart);
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
@@ -41,6 +41,7 @@ export function ProductCard({
     setIsAdding(true);
     try {
       const result = await addToCart({
+        guestKey: guestKey || undefined,
         productId: product._id as Id<"products">,
         quantity: 1,
       });
