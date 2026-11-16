@@ -14,7 +14,7 @@ import {
   Truck,
   User,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -35,6 +35,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Container } from "./ui";
 import { LogoLink, LogoMark } from "./Logo";
+import "@/styles/homepage.css";
 
 const PRIMARY_NAV = [
   { href: "/shop", label: "All products" },
@@ -46,6 +47,7 @@ const PRIMARY_NAV = [
 
 function SearchBox({ className }: { className?: string }) {
   const navigate = useNavigate();
+  const suggestionsId = useId();
   const [term, setTerm] = useState("");
   const [debounced, setDebounced] = useState("");
   const [open, setOpen] = useState(false);
@@ -74,7 +76,7 @@ function SearchBox({ className }: { className?: string }) {
     (suggestions?.products.length ?? 0) > 0 || (suggestions?.categories.length ?? 0) > 0;
 
   return (
-    <form onSubmit={submit} className={cn("relative", className)} role="search">
+    <form onSubmit={submit} className={cn("knokh-search-box relative min-w-0", className)} role="search" aria-label="Product search">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={term}
@@ -86,12 +88,16 @@ function SearchBox({ className }: { className?: string }) {
         onBlur={() => {
           blurTimer.current = window.setTimeout(() => setOpen(false), 150);
         }}
+        name="q"
+        autoComplete="off"
+        aria-controls={open && debounced.length >= 2 ? suggestionsId : undefined}
+        onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}
         placeholder="Search products, brands and SKUs"
         aria-label="Search products"
         className="h-11 pl-9"
       />
       {open && debounced.length >= 2 ? (
-        <div className="absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-border bg-popover">
+        <div id={suggestionsId} role="region" aria-label="Search suggestions" className="absolute left-0 right-0 top-12 z-50 overflow-hidden rounded-xl border border-border bg-popover shadow-lg">
           {suggestions === undefined ? (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" /> Searching…
@@ -580,9 +586,12 @@ export function StoreShell() {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [location.pathname]);
 
+  const isHome = location.pathname === "/";
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="border-b border-border bg-primary text-primary-foreground">
+    <div className={cn("knokh-store-shell flex min-h-screen flex-col", isHome && "knokh-homepage")}>
+      <a href="#store-content" className="knokh-skip-link">Skip to content</a>
+      <div className="knokh-announcement border-b border-border bg-primary text-primary-foreground">
         <Container className="flex h-9 items-center justify-between text-xs">
           <p className="truncate">
             {zone?.freeAboveMinor
@@ -603,8 +612,8 @@ export function StoreShell() {
         </Container>
       </div>
 
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-        <Container className="flex h-16 items-center gap-3">
+      <header className="knokh-store-header sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+        <Container className="knokh-header-row flex h-16 items-center gap-3">
           <MobileMenu />
           <LogoLink className="shrink-0" />
           <SearchBox className="hidden flex-1 lg:block" />
@@ -612,7 +621,7 @@ export function StoreShell() {
             <div className="hidden xl:block">
               <CurrencyCountrySelectors />
             </div>
-            <Button asChild variant="ghost" size="icon" aria-label="Wishlist">
+            <Button asChild variant="ghost" size="icon" aria-label="Wishlist" className="knokh-header-wishlist">
               <Link to="/account/wishlist">
                 <Heart className="size-5" />
               </Link>
@@ -634,7 +643,7 @@ export function StoreShell() {
         <Container className="pb-3 lg:hidden">
           <SearchBox />
         </Container>
-        <Container className="hidden items-center gap-1 pb-2 lg:flex">
+        <Container className="knokh-desktop-nav hidden items-center gap-1 pb-2 lg:flex">
           {PRIMARY_NAV.map((item) => (
             <NavLink
               key={item.href}
@@ -668,9 +677,20 @@ export function StoreShell() {
             All categories →
           </NavLink>
         </Container>
+        {isHome && topCategories.length > 0 ? (
+          <nav aria-label="Product categories" className="knokh-mobile-categories lg:hidden">
+            <Container className="flex gap-2 overflow-x-auto pb-3 pt-1">
+              {topCategories.map(category => (
+                <Link key={category._id} to={`/category/${category.slug}`} className="knokh-category-chip">
+                  <Package className="size-4 shrink-0" aria-hidden="true" />{category.name}
+                </Link>
+              ))}
+            </Container>
+          </nav>
+        ) : null}
       </header>
 
-      <main className="flex-1">
+      <main id="store-content" tabIndex={-1} className="knokh-store-content flex-1">
         <Outlet />
       </main>
 

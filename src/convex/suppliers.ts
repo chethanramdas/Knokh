@@ -973,6 +973,8 @@ export const claimSyncJob = internalMutation({
       !supplier ||
       job.supplierId !== supplier._id ||
       job.status !== "queued" ||
+      job.scheduledFor > Date.now() ||
+      !["stock", "price", "full_catalog"].includes(job.type) ||
       job.attempts >= job.maxAttempts ||
       supplier.connector !== "feed_url" ||
       supplier.apiStatus === "disconnected"

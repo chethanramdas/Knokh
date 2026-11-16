@@ -128,6 +128,7 @@ type DueJob = {
   supplierId: Id<"suppliers">;
   connector: string;
   type: string;
+  apiStatus: string;
 };
 
 export const runDueSyncJobs = internalAction({
@@ -143,13 +144,24 @@ export const runDueSyncJobs = internalAction({
       const missing = (connector?.envVars ?? []).filter(
         (key) => !process.env[key],
       );
-      if (!connector?.implemented || missing.length > 0) {
+      if (
+        job.connector !== "feed_url" ||
+        job.apiStatus === "disconnected" ||
+        !["stock", "price", "full_catalog"].includes(job.type) ||
+        !connector?.implemented ||
+        missing.length > 0
+      ) {
         await ctx.runMutation(internal.suppliers.markSyncJobResult, {
           jobId: job._id,
           status: "skipped_not_configured",
-          error: !connector?.implemented
-            ? `Connector "${connector?.label ?? job.connector}" is not implemented.`
-            : `Missing environment variable(s): ${missing.join(", ")}`,
+          error:
+            job.connector !== "feed_url" ||
+            job.apiStatus === "disconnected" ||
+            !["stock", "price", "full_catalog"].includes(job.type)
+              ? "This job has no active, verified feed operation. Manual supplier ordering remains disabled."
+              : !connector?.implemented
+                ? `Connector "${connector?.label ?? job.connector}" is not implemented.`
+                : `Missing environment variable(s): ${missing.join(", ")}`,
         });
         results.push(`${job._id}: skipped (${connector?.id ?? job.connector})`);
         continue;

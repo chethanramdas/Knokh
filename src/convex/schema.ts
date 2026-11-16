@@ -50,11 +50,6 @@ export const fulfilmentStatusValidator = v.union(
   v.literal("returned"),
 );
 
-const moneyFields = {
-  amountMinor: v.number(),
-  currency: v.string(),
-};
-
 const imageValidator = v.object({
   url: v.string(),
   alt: v.optional(v.string()),

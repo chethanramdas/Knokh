@@ -1,4 +1,6 @@
 import { describe, test, expect } from "vitest";
+import * as XLSX from "xlsx";
+import { parseProductSpreadsheet } from "../src/lib/importFile";
 import { convexTest } from "convex-test";
 import schema from "../src/convex/schema";
 import { api, internal } from "../src/convex/_generated/api";
@@ -125,6 +127,130 @@ async function fixture() {
   };
 }
 describe("supplier safety", () => {
+  test("customer COD checkout reserves stock and creates one manual supplier task", async () => {
+    const { t, ids, customer, admin } = await fixture();
+    await customer.mutation(api.cart.addToCart, {
+      productId: ids.p,
+      quantity: 2,
+    });
+    const quote = await customer.query(api.checkout.getCheckoutQuote, {
+      countryCode: "IN",
+      currency: "INR",
+    });
+    expect(quote?.blockers).toHaveLength(0);
+    const args = {
+      contact: {
+        name: "Fixture Customer",
+        email: "customer@example.test",
+        phone: "0000000000",
+      },
+      shippingAddress: { ...address, postalCode: "560001" },
+      shippingMethodId: "standard",
+      paymentMethod: "cod" as const,
+      currency: "INR",
+    };
+    const result = await customer.mutation(api.checkout.placeOrder, args);
+    expect(result.totalMinor).toBe(quote?.totalMinor);
+    expect((await t.run((ctx) => ctx.db.get(ids.p)))?.stock).toBe(6);
+    const tasks = await t.run((ctx) =>
+      ctx.db
+        .query("supplier_orders")
+        .withIndex("by_order", (q) => q.eq("orderId", result.orderId))
+        .collect(),
+    );
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].status).toBe("needs_manual_fulfilment");
+    await expect(
+      customer.mutation(api.checkout.placeOrder, args),
+    ).rejects.toThrow(/cart is empty/);
+    await admin.mutation(api.suppliers.completeManualFulfilment, {
+      supplierOrderId: tasks[0]._id,
+      supplierOrderIdReference: "FIXTURE-EXTERNAL-ORDER",
+    });
+    expect(
+      (await t.run((ctx) => ctx.db.get(result.orderId)))?.fulfilmentStatus,
+    ).toBe("processing");
+  });
+  test("real CSV and XLSX bytes import through the supplier preview and commit path", async () => {
+    for (const kind of ["csv", "xlsx"] as const) {
+      const { t, ids, admin } = await fixture();
+      const sku = kind.toUpperCase() + "-FIXTURE";
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet([
+          {
+            name: "Import fixture",
+            sku,
+            price: "120.00",
+            stock: "3",
+            currency: "INR",
+          },
+        ]),
+        "Products",
+      );
+      const bytes = XLSX.write(workbook, {
+        type: "array",
+        bookType: kind,
+      }) as ArrayBuffer;
+      const rows = parseProductSpreadsheet(bytes, {
+        maxBytes: 1_000_000,
+        maxRows: 100,
+      });
+      expect(() =>
+        parseProductSpreadsheet(bytes, { maxBytes: 1, maxRows: 100 }),
+      ).toThrow(/size limit/);
+      const result = await admin.mutation(api.imports.startImport, {
+        type: kind,
+        fileName: `fixture.${kind}`,
+        fileSizeBytes: bytes.byteLength,
+        rows,
+        mode: "create_only",
+        publish: false,
+        supplierId: ids.a,
+      });
+      expect(result).toMatchObject({ validRows: 1, invalidRows: 0 });
+      expect(
+        (
+          await admin.mutation(api.imports.commitImportBatch, {
+            jobId: result.jobId,
+          })
+        ).created,
+      ).toBe(1);
+      const item = await t.run((ctx) =>
+        ctx.db
+          .query("products")
+          .withIndex("by_sku", (q) => q.eq("sku", sku))
+          .unique(),
+      );
+      expect(item).toMatchObject({
+        priceMinor: 12000,
+        stock: 3,
+        status: "draft",
+        supplierId: ids.a,
+      });
+    }
+  });
+  test("scheduled worker skips unsupported operations without supplier network calls", async () => {
+    const { t, ids } = await fixture();
+    const jobId = await t.run((ctx) =>
+      ctx.db.insert("supplier_sync_jobs", {
+        supplierId: ids.a,
+        type: "order_forward",
+        status: "queued",
+        scheduledFor: 1,
+        attempts: 0,
+        maxAttempts: 3,
+        createdAt: 1,
+      }),
+    );
+    const result = await t.action(internal.suppliersActions.runDueSyncJobs, {});
+    expect(result.processed).toBe(1);
+    expect((await t.run((ctx) => ctx.db.get(jobId)))?.status).toBe(
+      "skipped_not_configured",
+    );
+  });
+
   test("manual is ready; configuration presence never verifies an API", () => {
     for (const id of ["manual", "qikink", "deodap"])
       expect(connectionReadiness(id, () => false).status).toBe("connected");

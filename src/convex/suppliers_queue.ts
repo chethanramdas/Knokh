@@ -5,28 +5,34 @@ import { internalMutation, internalQuery } from "./_generated/server";
 /** Queued sync jobs that are due, with their supplier's connector id. */
 export const dueSyncJobs = internalQuery({
   args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("supplier_sync_jobs"),
+      supplierId: v.id("suppliers"),
+      connector: v.string(),
+      type: v.string(),
+      apiStatus: v.string(),
+    }),
+  ),
   handler: async (ctx) => {
     const now = Date.now();
     const queued = await ctx.db
       .query("supplier_sync_jobs")
-      .withIndex("by_status", (q) => q.eq("status", "queued"))
+      .withIndex("by_status", (q) =>
+        q.eq("status", "queued").lte("scheduledFor", now),
+      )
       .take(20);
     const out = [];
     for (const job of queued) {
       if (job.scheduledFor > now) continue;
       const supplier = await ctx.db.get(job.supplierId);
       if (!supplier) continue;
-      if (
-        supplier.apiStatus === "disconnected" ||
-        supplier.connector !== "feed_url" ||
-        !["stock", "price", "full_catalog"].includes(job.type)
-      )
-        continue;
       out.push({
         _id: job._id,
         supplierId: job.supplierId,
         connector: supplier.connector,
         type: job.type,
+        apiStatus: supplier.apiStatus,
       });
     }
     return out;
@@ -69,6 +75,7 @@ export const supplierOrderDetails = internalQuery({
 
 export const markManualFulfilment = internalMutation({
   args: { supplierOrderId: v.id("supplier_orders"), reason: v.string() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const supplierOrder = await ctx.db.get(args.supplierOrderId);
     if (!supplierOrder) return null;

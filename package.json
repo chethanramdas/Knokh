@@ -11,10 +11,12 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "node scripts/codegen-offline.mjs && tsc -b",
-    "security:check": "npm audit --omit=dev"
+    "security:check": "npm audit --omit=dev",
+    "test:contrast": "node scripts/check-homepage-contrast.mjs"
   },
   "dependencies": {
-    "@convex-dev/auth": "^0.0.90",
+    "@auth/core": "0.41.3",
+    "@convex-dev/auth": "0.0.98",
     "@hookform/resolvers": "^5.2.2",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@oslojs/crypto": "^1.0.1",
@@ -70,7 +72,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.17",
     "vaul": "^1.1.2",
-    "xlsx": "0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.1.13"
   },
   "devDependencies": {

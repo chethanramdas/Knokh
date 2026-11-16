@@ -23,7 +23,7 @@ The contribution calculator subtracts supplier cost, shipping, payment fees, ret
 | DeoDap | Manual profile and authorised spreadsheets | No verified supplier fulfilment API or free CSV subscription established |
 | Existing CJ/AliExpress/3PL profiles | Existing configuration remains visible | Unimplemented providers cannot become connected merely because environment variables exist |
 
-Primary references checked 2026-11-15:
+Primary references checked 2026-11-16:
 - https://qikink.com/help/getting-started/how-do-i-get-started/
 - https://admins.qikink.com/api-docs/ (account-restricted; current authentication, idempotency and inventory contracts still require verification)
 - https://deodap.in/pages/csv-plan
@@ -52,3 +52,8 @@ These tests do not demonstrate Qikink/DeoDap sandbox connectivity, live feed del
 - Deploy backend first, then merge/deploy the frontend from main after staging verification. Observe sync failures and manual task statuses.
 - On failure, stop scheduled new sync work and restore the previous backend code and Cloudflare deployment. Do not restore an old database over newer customer orders without a separately approved recovery plan. Added optional fields may remain during code rollback.
 - Revoke temporary deployment credentials after the release. Do not decommission the current backend as part of these supplier/UI changes.
+
+## 2026-11-16 release verification additions
+The branch incorporates the production Golden Sunrise homepage unchanged. Dependency updates remove reported production dependency vulnerabilities while retaining compatible Convex Auth v1; see SUPPLIER-SECURITY-AUDIT.md. Regression tests now include actual OTP actions with an intercepted email transport, session refresh/logout, real CSV/XLSX bytes, customer COD checkout, stock reservation, and supplier task creation. Scheduled jobs are restricted by due time and unsupported operations are marked skipped without external purchasing.
+
+Staging target identified in the owner's account: `dev/user-2` / `tame-lemur-590`. It is separate from production `agreeable-caterpillar-156` and was never deployed when inspected. No production data has been copied there. Deployment and end-to-end staging checks remain pending deployment credentials. The Convex CLI's CI mode disables optional CLI Sentry initialization according to the installed official source; cloud staging can use this mode without the previously blocked telemetry path.
