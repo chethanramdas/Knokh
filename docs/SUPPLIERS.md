@@ -56,7 +56,7 @@ These tests do not demonstrate Qikink/DeoDap sandbox connectivity, live feed del
 ## 2026-11-16 release verification additions
 The branch incorporates the production Golden Sunrise homepage unchanged. Dependency updates remove reported production dependency vulnerabilities while retaining compatible Convex Auth v1; see SUPPLIER-SECURITY-AUDIT.md. Regression tests now include actual OTP actions with an intercepted email transport, session refresh/logout, real CSV/XLSX bytes, customer COD checkout, stock reservation, and supplier task creation. Scheduled jobs are restricted by due time and unsupported operations are marked skipped without external purchasing.
 
-Staging target identified in the owner's account: `dev/user-2` / `tame-lemur-590`. It is separate from production `agreeable-caterpillar-156` and was never deployed when inspected. No production data has been copied there. Deployment and end-to-end staging checks remain pending deployment credentials. The Convex CLI's CI mode disables optional CLI Sentry initialization according to the installed official source; cloud staging can use this mode without the previously blocked telemetry path.
+Staging target: `dev/user-2` / `tame-lemur-590`, separate from production `agreeable-caterpillar-156`. The release was deployed there with staging-only test data, fresh authentication signing keys and an approved one-hour deployment credential. No production data or signing keys were copied there. The Convex CLI runs in CI mode, which disables optional CLI Sentry initialization according to its installed official source.
 
 ## Cloud staging push — 2026-11-16
 The supplier functions and schema were successfully pushed to isolated deployment
@@ -72,3 +72,26 @@ rejected copying the production Resend secret into staging. No production email
 credential was copied. A separately approved sending credential is required for
 real email delivery tests. Other cloud integration test results are recorded in
 the PR before merge; a frontend preview does not establish provider connectivity.
+
+### Cloud integration evidence
+Eleven checks passed against the real isolated cloud backend on 2026-11-16:
+1. HTTPS health endpoint.
+2. Staging administrator access, with signed-out and customer privileged requests denied.
+3. Truthful manual/Qikink/DeoDap readiness and unverified feed status.
+4. CSV preview, duplicate rejection, commit and retry idempotency.
+5. Product creation, stock adjustment and supplier mapping.
+6. Customer cart, server quote, COD checkout, stock reservation and duplicate checkout rejection.
+7. Authenticated staging fixture feed fetched through the real DNS-pinned Node HTTPS transport; supplier cost updates preserve retail price and checkout stock deductions.
+8. Feed connection becomes verified only after that actual successful request.
+9. Manual supplier task, tracking, harmless repeated shipment submission, shipped order and customer order history.
+10. Anonymous sign-in with a real signed session, current-user query and logout.
+11. Email sign-in fails closed with an understandable error when staging Resend credentials are missing.
+
+The feed is a controlled staging fixture, not a Qikink, DeoDap or other real supplier connection. Isolated fixture identities and the test feed are in a separate staging-only source copy. They must never be deployed to production. The release branch does not contain test administrator provisioning, a test HTTP feed, or staging environment files.
+
+The dedicated Cloudflare preview at `https://staging-supplier-release.knokh-preview.pages.dev` was built successfully from staging branch commit `fefdfe48f00c8a80b19af8e876d4cdf7d52da584`, whose only additional configuration is the public staging backend URL. Other previews and production retain their existing backend targets. `SITE_URL` on the staging backend points to this isolated preview. Cloudflare Access currently requires an interactive sign-in before browser verification can finish. This access protection is retained.
+
+### Production backup and outstanding release gates
+Before any production code deployment, a manual Convex backup including file storage completed at 2026-11-16 15:34:08 UTC. The downloaded ZIP passed CRC verification. Its SHA-256 is `4958a8a6391770b93419774afc42fc995b3918c253528188ad12df686b7da519`. The archive stays private; no customer records, session data or credentials belong in this repository. Dashboard backups expire after seven days; code, environment variables and scheduled functions require separate rollback planning.
+
+The supplier release is **not yet merged or deployed to production**. Remaining gates are a dedicated staging email credential and actual OTP delivery/verification, authenticated browser checks through Cloudflare Access, production deployment access and post-deployment verification. Preserve the existing production email credential; do not copy it into staging. Automatic supplier purchasing remains disabled after this release as well.
