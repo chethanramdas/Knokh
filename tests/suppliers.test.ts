@@ -127,6 +127,32 @@ async function fixture() {
   };
 }
 describe("supplier safety", () => {
+  test("guest cart additions persist without exposing another visitor or customer cart", async () => {
+    const { t, ids, customer } = await fixture();
+    const guestKey = "guest-cart-regression-visitor-one";
+    await t.mutation(api.cart.addToCart, {
+      guestKey,
+      productId: ids.p,
+      quantity: 2,
+    });
+    expect(await t.query(api.cart.getCartCount, { guestKey })).toBe(2);
+    expect(
+      await t.query(api.cart.getCartCount, {
+        guestKey: "guest-cart-regression-visitor-two",
+      }),
+    ).toBe(0);
+    expect(await customer.query(api.cart.getCartCount, { guestKey })).toBe(0);
+    const cart = await t.query(api.cart.getCart, {
+      guestKey,
+      countryCode: "IN",
+      currency: "INR",
+    });
+    expect(cart?.subtotalMinor).toBe(20000);
+    await expect(
+      t.mutation(api.cart.addToCart, { productId: ids.p, quantity: 1 }),
+    ).rejects.toThrow(/valid cart session key/);
+    expect((await t.run((ctx) => ctx.db.get(ids.p)))?.stock).toBe(8);
+  });
   test("customer COD checkout reserves stock and creates one manual supplier task", async () => {
     const { t, ids, customer, admin } = await fixture();
     await customer.mutation(api.cart.addToCart, {
