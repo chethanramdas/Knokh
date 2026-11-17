@@ -50,11 +50,6 @@ export const fulfilmentStatusValidator = v.union(
   v.literal("returned"),
 );
 
-const moneyFields = {
-  amountMinor: v.number(),
-  currency: v.string(),
-};
-
 const imageValidator = v.object({
   url: v.string(),
   alt: v.optional(v.string()),
@@ -233,6 +228,7 @@ const schema = defineSchema(
       .index("by_subcategory", ["subcategoryId", "status"])
       .index("by_brand", ["brandId", "status"])
       .index("by_supplier", ["supplierId"])
+      .index("by_supplier_sku", ["supplierId", "supplierSku"])
       .index("by_featured", ["featured", "status"])
       .index("by_price", ["status", "priceMinor"])
       .searchIndex("search_text", {
@@ -498,6 +494,7 @@ const schema = defineSchema(
 
     shipments: defineTable({
       orderId: v.id("orders"),
+      supplierOrderId: v.optional(v.id("supplier_orders")),
       carrier: v.string(),
       trackingNumber: v.string(),
       trackingUrl: v.optional(v.string()),
@@ -521,7 +518,7 @@ const schema = defineSchema(
       shippedAt: v.optional(v.number()),
       deliveredAt: v.optional(v.number()),
       updatedAt: v.number(),
-    }).index("by_order", ["orderId"]),
+    }).index("by_order", ["orderId"]).index("by_supplier_order", ["supplierOrderId"]),
 
     return_requests: defineTable({
       orderId: v.id("orders"),
@@ -632,6 +629,7 @@ const schema = defineSchema(
       shipsTo: v.optional(v.array(v.string())),
       sourceUrl: v.optional(v.string()),
       lastSyncedAt: v.number(),
+      stockBaselineKnown: v.optional(v.boolean()),
       rawSummary: v.optional(v.string()),
     })
       .index("by_supplier_product", ["supplierId", "supplierProductId"])

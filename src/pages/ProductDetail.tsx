@@ -37,6 +37,10 @@ import { cn } from "@/lib/utils";
 
 export default function ProductDetail() {
   const { slug = "" } = useParams();
+  return <ProductDetailContent key={slug} slug={slug} />;
+}
+
+function ProductDetailContent({ slug }: { slug: string }) {
   const { guestKey, money, isWishlisted, toggleWishlist, zone, config, country } =
     useStore();
   const result = useQuery(api.catalog.getProductBySlug, { slug });
@@ -45,7 +49,7 @@ export default function ProductDetail() {
   const submitReview = useMutation(api.orders.submitReview);
   const { isAuthenticated } = useAuth();
 
-  const [variantSku, setVariantSku] = useState<string | undefined>(undefined);
+  const [chosenVariantSku, setVariantSku] = useState<string | undefined>(undefined);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
@@ -56,12 +60,9 @@ export default function ProductDetail() {
 
   const product = result?.product;
 
-  useEffect(() => {
-    if (!product) return;
-    setVariantSku(product.variants[0]?.sku);
-    setActiveImage(0);
-    setQuantity(1);
-  }, [product?._id, product?.variants.length]);
+  const variantSku = product?.variants.some((variant) => variant.sku === chosenVariantSku)
+    ? chosenVariantSku
+    : product?.variants[0]?.sku;
 
   useEffect(() => {
     if (!slug) return;
@@ -139,6 +140,7 @@ export default function ProductDetail() {
     setIsAdding(true);
     try {
       await addToCart({
+        guestKey: guestKey || undefined,
         productId: product._id as Id<"products">,
         variantSku,
         quantity,

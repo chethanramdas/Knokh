@@ -14,87 +14,44 @@ import type { Id } from "./_generated/dataModel";
 import { action, internalAction } from "./_generated/server";
 import { feedRowsToItems } from "./lib/feed";
 import { envValue } from "./lib/gateways";
-import { CONNECTORS } from "./suppliers";
+import { CONNECTORS } from "./lib/supplierConnectors";
+import { publicGet } from "./lib/publicHttp";
+import { parseCsvRecords } from "./lib/supplierFeed";
 
-function asArray(value: unknown): Record<string, unknown>[] {
-  if (Array.isArray(value)) return value as Record<string, unknown>[];
-  if (value && typeof value === "object" && Array.isArray((value as any).products)) {
-    return (value as any).products as Record<string, unknown>[];
-  }
-  if (value && typeof value === "object" && Array.isArray((value as any).items)) {
-    return (value as any).items as Record<string, unknown>[];
-  }
-  return [];
-}
-
-function parseCsv(text: string): Record<string, unknown>[] {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  if (lines.length < 2) return [];
-  const splitRow = (line: string) => {
-    const cells: string[] = [];
-    let current = "";
-    let quoted = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (quoted && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          quoted = !quoted;
-        }
-      } else if (char === "," && !quoted) {
-        cells.push(current);
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-    cells.push(current);
-    return cells;
-  };
-  const headers = splitRow(lines[0]).map((header) => header.trim());
-  return lines.slice(1).map((line) => {
-    const cells = splitRow(line);
-    const row: Record<string, unknown> = {};
-    headers.forEach((header, index) => {
-      row[header] = cells[index]?.trim() ?? "";
-    });
-    return row;
-  });
-}
-
-async function fetchFeed(connector: string): Promise<Record<string, unknown>[]> {
+async function fetchFeed(): Promise<Record<string, unknown>[]> {
   const url = envValue("SUPPLIER_FEED_URL");
-  const token = envValue("SUPPLIER_FEED_TOKEN");
-  if (!url) {
+  if (!url) throw new Error("SUPPLIER_FEED_URL is not configured.");
+  const response = await publicGet(url, {
+    token: envValue("SUPPLIER_FEED_TOKEN") || undefined,
+  });
+  if (response.status < 200 || response.status >= 300)
+    throw new Error(`Feed returned HTTP ${response.status}.`);
+  let rows: unknown;
+  if (
+    response.text.trimStart().startsWith("{") ||
+    response.text.trimStart().startsWith("[")
+  ) {
+    const parsed: unknown = JSON.parse(response.text);
+    rows = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object"
+        ? "products" in parsed
+          ? parsed.products
+          : "items" in parsed
+            ? parsed.items
+            : null
+        : null;
+  } else rows = parseCsvRecords(response.text);
+  if (
+    !Array.isArray(rows) ||
+    !rows.length ||
+    rows.length > 250 ||
+    rows.some((r) => !r || typeof r !== "object" || Array.isArray(r))
+  )
     throw new Error(
-      "SUPPLIER_FEED_URL is not configured. Set it on the deployment to enable the catalog feed connector.",
+      "Feed must contain 1–250 object rows. Split larger feeds into authorised batches or use spreadsheet imports.",
     );
-  }
-  if (connector !== "feed_url") {
-    throw new Error(
-      `The "${connector}" connector is registered but its request layer is not implemented in this codebase. See the setup notes in Admin → Suppliers.`,
-    );
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20_000);
-  try {
-    const response = await fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new Error(`The feed responded with HTTP ${response.status}.`);
-    }
-    const text = await response.text();
-    if (text.trimStart().startsWith("{") || text.trimStart().startsWith("[")) {
-      return asArray(JSON.parse(text));
-    }
-    return parseCsv(text);
-  } finally {
-    clearTimeout(timer);
-  }
+  return rows as Record<string, unknown>[];
 }
 
 type SyncOutcome = {
@@ -116,7 +73,16 @@ export const runSyncJob = internalAction({
   },
   handler: async (ctx, args): Promise<SyncOutcome> => {
     try {
-      const rows = await fetchFeed("feed_url");
+      const active = await ctx.runMutation(internal.suppliers.claimSyncJob, {
+        jobId: args.jobId,
+        supplierId: args.supplierId,
+      });
+      if (!active)
+        return {
+          ok: false,
+          reason: "Job is not queued for an active feed supplier.",
+        };
+      const rows = await fetchFeed();
       const items = feedRowsToItems(rows);
       if (items.length === 0) {
         await ctx.runMutation(internal.suppliers.markSyncJobResult, {
@@ -124,7 +90,10 @@ export const runSyncJob = internalAction({
           status: "failed",
           error: "The feed contained no readable product rows.",
         });
-        return { ok: false, reason: "The feed contained no readable product rows." };
+        return {
+          ok: false,
+          reason: "The feed contained no readable product rows.",
+        };
       }
       const result: {
         costChanges: number;
@@ -141,7 +110,8 @@ export const runSyncJob = internalAction({
       });
       return { ok: true, ...result };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown sync error";
+      const message =
+        error instanceof Error ? error.message : "Unknown sync error";
       await ctx.runMutation(internal.suppliers.markSyncJobResult, {
         jobId: args.jobId,
         status: "failed",
@@ -158,23 +128,40 @@ type DueJob = {
   supplierId: Id<"suppliers">;
   connector: string;
   type: string;
+  apiStatus: string;
 };
 
 export const runDueSyncJobs = internalAction({
   args: {},
   handler: async (ctx): Promise<{ processed: number; results: string[] }> => {
-    const jobs: DueJob[] = await ctx.runQuery(internal.suppliers_queue.dueSyncJobs, {});
+    const jobs: DueJob[] = await ctx.runQuery(
+      internal.suppliers_queue.dueSyncJobs,
+      {},
+    );
     const results: string[] = [];
     for (const job of jobs) {
       const connector = CONNECTORS.find((entry) => entry.id === job.connector);
-      const missing = (connector?.envVars ?? []).filter((key) => !process.env[key]);
-      if (!connector?.implemented || missing.length > 0) {
+      const missing = (connector?.envVars ?? []).filter(
+        (key) => !process.env[key],
+      );
+      if (
+        job.connector !== "feed_url" ||
+        job.apiStatus === "disconnected" ||
+        !["stock", "price", "full_catalog"].includes(job.type) ||
+        !connector?.implemented ||
+        missing.length > 0
+      ) {
         await ctx.runMutation(internal.suppliers.markSyncJobResult, {
           jobId: job._id,
           status: "skipped_not_configured",
-          error: !connector?.implemented
-            ? `Connector "${connector?.label ?? job.connector}" is not implemented.`
-            : `Missing environment variable(s): ${missing.join(", ")}`,
+          error:
+            job.connector !== "feed_url" ||
+            job.apiStatus === "disconnected" ||
+            !["stock", "price", "full_catalog"].includes(job.type)
+              ? "This job has no active, verified feed operation. Manual supplier ordering remains disabled."
+              : !connector?.implemented
+                ? `Connector "${connector?.label ?? job.connector}" is not implemented.`
+                : `Missing environment variable(s): ${missing.join(", ")}`,
         });
         results.push(`${job._id}: skipped (${connector?.id ?? job.connector})`);
         continue;
@@ -184,8 +171,8 @@ export const runDueSyncJobs = internalAction({
         {
           jobId: job._id,
           supplierId: job.supplierId,
-          updateCost: true,
-          updateStock: true,
+          updateCost: job.type !== "stock",
+          updateStock: job.type !== "price",
         },
       );
       results.push(`${job._id}: ${outcome.ok ? "succeeded" : "failed"}`);
@@ -207,6 +194,7 @@ type ForwardOutcome = { ok: boolean; duplicate?: boolean; reason?: string };
 export const forwardSupplierOrder = action({
   args: { supplierOrderId: v.id("supplier_orders") },
   handler: async (ctx, args): Promise<ForwardOutcome> => {
+    await ctx.runQuery(internal.suppliers_queue.authorizeForward, {});
     const details: {
       connector: string;
       supplierName: string;
@@ -219,14 +207,22 @@ export const forwardSupplierOrder = action({
     );
     if (!details) return { ok: false, reason: "Supplier order not found." };
     if (details.alreadySubmitted) {
-      return { ok: true, duplicate: true, reason: "Already submitted (idempotency key reused)." };
+      return {
+        ok: true,
+        duplicate: true,
+        reason: "Already submitted (idempotency key reused).",
+      };
     }
-    const connector = CONNECTORS.find((entry) => entry.id === details.connector);
+    const connector = CONNECTORS.find(
+      (entry) => entry.id === details.connector,
+    );
     if (!connector?.implemented || !connector.supportsOrderApi) {
       await ctx.runMutation(internal.suppliers_queue.markManualFulfilment, {
         supplierOrderId: args.supplierOrderId,
         reason: `Automated order submission is not available for the "${connector?.label ?? details.connector}" connector${
-          connector?.implemented ? " (no order API)" : " (not implemented in this codebase)"
+          connector?.implemented
+            ? " (no order API)"
+            : " (not implemented in this codebase)"
         }. Fulfil this order manually and add the tracking number.`,
       });
       return { ok: false, reason: "Manual fulfilment required." };

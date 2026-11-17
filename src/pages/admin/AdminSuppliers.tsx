@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime, titleCase } from "@/lib/format";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
+import { SupplierProfitCalculator } from "@/components/knokh/SupplierProfitCalculator";
 
 const MANUAL_ALERT =
   "Supplier automation is only enabled for connectors implemented in this codebase (manual, catalog feed). Others are registered with their setup notes and credentials list, but no request layer exists yet — so they are reported as not configured instead of pretending to work.";
@@ -31,7 +32,10 @@ export default function AdminSuppliers() {
   const supplierOrders = useQuery(api.suppliers.listSupplierOrders, {});
   const syncJobs = useQuery(api.suppliers.listSyncJobs, {});
   const unmapped = useQuery(api.suppliers.unmappedProductAlerts, {});
-  const products = useQuery(api.admin.listProductsAdmin, { perPage: 100, status: "all" });
+  const products = useQuery(api.admin.listProductsAdmin, {
+    perPage: 100,
+    status: "all",
+  });
 
   const saveSupplier = useMutation(api.suppliers.saveSupplier);
   const checkConnection = useMutation(api.suppliers.checkSupplierConnection);
@@ -40,7 +44,12 @@ export default function AdminSuppliers() {
   const mapSupplierProduct = useMutation(api.suppliers.mapSupplierProduct);
   const [busy, setBusy] = useState<string | null>(null);
 
-  usePageMeta({ title: "Suppliers", noIndex: true, path: "/admin/suppliers", siteUrl: config?.seo.siteUrl });
+  usePageMeta({
+    title: "Suppliers",
+    noIndex: true,
+    path: "/admin/suppliers",
+    siteUrl: config?.seo.siteUrl,
+  });
 
   return (
     <div className="space-y-6">
@@ -50,9 +59,20 @@ export default function AdminSuppliers() {
       />
 
       <InfoNote tone="info">
-        Queued synchronisation runs automatically every 30 minutes on the deployment's scheduled
-        job. Jobs for connectors that are not implemented, or that are missing credentials, are
-        recorded as <strong>skipped_not_configured</strong> with the reason — never silently dropped.
+        Start without buying inventory: add a manual supplier, import only
+        authorised products as drafts, confirm supplier availability and costs,
+        and publish when ready. Paid orders and permitted COD orders appear as
+        manual tasks. Place them with the supplier yourself and record the
+        reference and tracking. Product and delivery charges still apply per
+        order; no KNOKH supplier subscription is required.
+      </InfoNote>
+      <SupplierProfitCalculator />
+      <InfoNote tone="info">
+        Queued synchronisation runs automatically every 30 minutes on the
+        deployment's scheduled job. Jobs for connectors that are not
+        implemented, or that are missing credentials, are recorded as{" "}
+        <strong>skipped_not_configured</strong> with the reason — never silently
+        dropped.
       </InfoNote>
 
       <InfoNote tone="warning">
@@ -63,19 +83,28 @@ export default function AdminSuppliers() {
         <h2 className="text-sm font-semibold">Connector registry</h2>
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
           {(connectors ?? []).map((connector) => (
-            <div key={connector.id} className="rounded-lg border border-border p-4 text-sm">
+            <div
+              key={connector.id}
+              className="rounded-lg border border-border p-4 text-sm"
+            >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{connector.label}</span>
-                <StatusPill tone={connector.implemented ? "success" : "warning"}>
+                <StatusPill
+                  tone={connector.implemented ? "success" : "warning"}
+                >
                   {connector.implemented ? "Implemented" : "Interface only"}
                 </StatusPill>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{connector.setup}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {connector.setup}
+              </p>
               {connector.envStatus.length > 0 ? (
                 <ul className="mt-2 space-y-0.5 text-xs">
                   {connector.envStatus.map((entry) => (
                     <li key={entry.key} className="flex items-center gap-2">
-                      <StatusPill tone={entry.configured ? "success" : "neutral"}>
+                      <StatusPill
+                        tone={entry.configured ? "success" : "neutral"}
+                      >
                         {entry.configured ? "set" : "missing"}
                       </StatusPill>
                       <code>{entry.key}</code>
@@ -94,7 +123,8 @@ export default function AdminSuppliers() {
           className="mt-3 grid gap-3 sm:grid-cols-3"
           onSubmit={async (event) => {
             event.preventDefault();
-            const data = new FormData(event.currentTarget);
+            const form = event.currentTarget;
+            const data = new FormData(form);
             setBusy("create");
             try {
               await saveSupplier({
@@ -107,9 +137,13 @@ export default function AdminSuppliers() {
                 notes: String(data.get("notes") ?? "") || undefined,
               });
               toast.success("Supplier added with its connection record.");
-              event.currentTarget.reset();
+              form.reset();
             } catch (error) {
-              toast.error(error instanceof Error ? error.message : "Could not add the supplier.");
+              toast.error(
+                error instanceof Error
+                  ? error.message
+                  : "Could not add the supplier.",
+              );
             } finally {
               setBusy(null);
             }
@@ -121,7 +155,11 @@ export default function AdminSuppliers() {
           </div>
           <div>
             <Label htmlFor="sup-website">Website</Label>
-            <Input id="sup-website" name="website" placeholder="https://supplier.example" />
+            <Input
+              id="sup-website"
+              name="website"
+              placeholder="https://supplier.example"
+            />
           </div>
           <div>
             <Label htmlFor="sup-connector">Connector</Label>
@@ -140,11 +178,21 @@ export default function AdminSuppliers() {
           </div>
           <div>
             <Label htmlFor="sup-country">Country (ISO)</Label>
-            <Input id="sup-country" name="country" defaultValue="IN" maxLength={2} />
+            <Input
+              id="sup-country"
+              name="country"
+              defaultValue="IN"
+              maxLength={2}
+            />
           </div>
           <div>
             <Label htmlFor="sup-currency">Currency</Label>
-            <Input id="sup-currency" name="currency" defaultValue="INR" maxLength={3} />
+            <Input
+              id="sup-currency"
+              name="currency"
+              defaultValue="INR"
+              maxLength={3}
+            />
           </div>
           <div>
             <Label htmlFor="sup-email">Contact email</Label>
@@ -156,7 +204,10 @@ export default function AdminSuppliers() {
           </div>
           <div>
             <Button type="submit" disabled={busy === "create"}>
-              {busy === "create" ? <Loader2 className="size-4 animate-spin" /> : null} Add supplier
+              {busy === "create" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}{" "}
+              Add supplier
             </Button>
           </div>
         </form>
@@ -172,13 +223,16 @@ export default function AdminSuppliers() {
       ) : (
         <div className="space-y-4">
           {suppliers.map((supplier) => (
-            <div key={supplier._id} className="rounded-xl border border-border bg-card p-5">
+            <div
+              key={supplier._id}
+              className="rounded-xl border border-border bg-card p-5"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{supplier.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {supplier.connectorLabel} · {supplier.country} · {supplier.currency} ·{" "}
-                    {supplier.website ?? "no website"}
+                    {supplier.connectorLabel} · {supplier.country} ·{" "}
+                    {supplier.currency} · {supplier.website ?? "no website"}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <StatusPill
@@ -190,12 +244,19 @@ export default function AdminSuppliers() {
                             : "warning"
                       }
                     >
-                      {titleCase(supplier.apiStatus)}
+                      {supplier.apiStatus === "connected" &&
+                      supplier.connector !== "feed_url"
+                        ? "Manual fulfilment ready"
+                        : titleCase(supplier.apiStatus)}
                     </StatusPill>
                     {!supplier.connectorImplemented ? (
-                      <StatusPill tone="neutral">Connector not implemented</StatusPill>
+                      <StatusPill tone="neutral">
+                        Connector not implemented
+                      </StatusPill>
                     ) : null}
-                    <StatusPill tone="info">{supplier.mappedProducts} mapped SKUs</StatusPill>
+                    <StatusPill tone="info">
+                      {supplier.mappedProducts} mapped SKUs
+                    </StatusPill>
                     {supplier.unmappedProducts > 0 ? (
                       <StatusPill tone="warning">
                         {supplier.unmappedProducts} unmapped
@@ -203,7 +264,8 @@ export default function AdminSuppliers() {
                     ) : null}
                     {supplier.manualFulfilmentTasks > 0 ? (
                       <StatusPill tone="warning">
-                        {supplier.manualFulfilmentTasks} manual fulfilment task(s)
+                        {supplier.manualFulfilmentTasks} manual fulfilment
+                        task(s)
                       </StatusPill>
                     ) : null}
                   </div>
@@ -216,36 +278,56 @@ export default function AdminSuppliers() {
                     onClick={async () => {
                       setBusy(String(supplier._id));
                       try {
-                        const result = await checkConnection({ supplierId: supplier._id });
-                        toast.success(
-                          result.missing.length === 0
-                            ? "All required credentials are present."
-                            : `Missing: ${result.missing.join(", ")}`,
-                        );
+                        const result = await checkConnection({
+                          supplierId: supplier._id,
+                        });
+                        toast.success(result.message);
                       } catch (error) {
-                        toast.error(error instanceof Error ? error.message : "Check failed.");
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Check failed.",
+                        );
                       } finally {
                         setBusy(null);
                       }
                     }}
                   >
-                    <Plug className="size-3.5" /> Check connection
+                    <Plug className="size-3.5" /> Check configuration
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={busy !== null}
+                    disabled={
+                      busy !== null ||
+                      supplier.connector !== "feed_url" ||
+                      supplier.apiStatus === "disconnected"
+                    }
                     onClick={async () => {
-                      const result = await queueSync({ supplierId: supplier._id, type: "full_catalog" });
-                      toast.success(
-                        result.skipped
-                          ? `Sync queued but will be skipped: ${
-                              result.missing.length > 0
-                                ? `missing ${result.missing.join(", ")}`
-                                : "connector not implemented"
-                            }`
-                          : "Sync job queued. It runs on the next scheduled pass or when you run due jobs.",
-                      );
+                      setBusy(String(supplier._id));
+                      try {
+                        const result = await queueSync({
+                          supplierId: supplier._id,
+                          type: "full_catalog",
+                        });
+                        toast.success(
+                          result.skipped
+                            ? `Sync queued but will be skipped: ${
+                                result.missing.length > 0
+                                  ? `missing ${result.missing.join(", ")}`
+                                  : "connector not implemented"
+                              }`
+                            : "Sync job queued. It runs on the next scheduled pass.",
+                        );
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not queue sync.",
+                        );
+                      } finally {
+                        setBusy(null);
+                      }
                     }}
                   >
                     <RefreshCw className="size-3.5" /> Queue catalog sync
@@ -253,9 +335,21 @@ export default function AdminSuppliers() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    disabled={busy !== null}
                     onClick={async () => {
-                      await disconnect({ supplierId: supplier._id });
-                      toast.success("Connection marked disconnected. Rotate the credentials too.");
+                      setBusy(String(supplier._id));
+                      try {
+                        await disconnect({ supplierId: supplier._id });
+                        toast.success("Supplier marked disconnected.");
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not disconnect.",
+                        );
+                      } finally {
+                        setBusy(null);
+                      }
                     }}
                   >
                     <ShieldAlert className="size-3.5" /> Disconnect
@@ -271,6 +365,7 @@ export default function AdminSuppliers() {
                       {connection.envVars.length > 0
                         ? `env: ${connection.envVars.join(", ")}`
                         : "no credentials required"}
+                      {connection.lastError ? ` · ${connection.lastError}` : ""}
                       {connection.lastCheckedAt
                         ? ` · checked ${formatDateTime(connection.lastCheckedAt)}`
                         : ""}
@@ -298,14 +393,16 @@ export default function AdminSuppliers() {
       <div className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-sm font-semibold">Supplier SKU mapping</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Mapping links a supplier SKU to a catalog product so cost and stock sync reaches the right
-          item. Unmapped supplier rows are reported here rather than silently skipped.
+          Mapping links a supplier SKU to a catalog product so cost and stock
+          sync reaches the right item. Unmapped supplier rows are reported here
+          rather than silently skipped.
         </p>
         {supplierProducts === undefined ? (
           <LoadingBlock />
         ) : supplierProducts.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            No supplier products recorded. Run a catalog sync or import a supplier spreadsheet.
+            No supplier products recorded. Run a catalog sync or import a
+            supplier spreadsheet.
           </p>
         ) : (
           <div className="mt-3 max-h-96 overflow-auto rounded-lg border border-border">
@@ -330,7 +427,9 @@ export default function AdminSuppliers() {
                     </td>
                     <td className="px-3 py-2">{row.stock}</td>
                     <td className="px-3 py-2">
-                      {row.productName ?? <span className="text-amber-600">unmapped</span>}
+                      {row.productName ?? (
+                        <span className="text-amber-600">unmapped</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <select
@@ -347,7 +446,9 @@ export default function AdminSuppliers() {
                             toast.success("Mapping updated.");
                           } catch (error) {
                             toast.error(
-                              error instanceof Error ? error.message : "Could not map the SKU.",
+                              error instanceof Error
+                                ? error.message
+                                : "Could not map the SKU.",
                             );
                           }
                         }}
@@ -376,7 +477,8 @@ export default function AdminSuppliers() {
             <LoadingBlock />
           ) : supplierOrders.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              No supplier orders yet. They are queued when a paid order is confirmed.
+              No supplier orders yet. They are queued when a paid order is
+              confirmed.
             </p>
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
@@ -389,10 +491,13 @@ export default function AdminSuppliers() {
                     {entry.orderNumber}
                   </Link>
                   <span className="ml-2 text-xs text-muted-foreground">
-                    {entry.supplierName} · {titleCase(entry.status)} · attempts {entry.attempts}
+                    {entry.supplierName} · {titleCase(entry.status)} · attempts{" "}
+                    {entry.attempts}
                   </span>
                   {entry.responseSummary ? (
-                    <p className="text-xs text-muted-foreground">{entry.responseSummary}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {entry.responseSummary}
+                    </p>
                   ) : null}
                 </li>
               ))}
@@ -405,7 +510,9 @@ export default function AdminSuppliers() {
           {syncJobs === undefined ? (
             <LoadingBlock />
           ) : syncJobs.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No sync jobs have been queued.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              No sync jobs have been queued.
+            </p>
           ) : (
             <ul className="mt-3 space-y-2 text-sm">
               {syncJobs.slice(0, 20).map((job) => (
@@ -441,7 +548,10 @@ export default function AdminSuppliers() {
           </h2>
           <ul className="mt-2 flex flex-wrap gap-2 text-xs">
             {(unmapped ?? []).map((product) => (
-              <li key={product._id} className="rounded-full border border-border px-3 py-1">
+              <li
+                key={product._id}
+                className="rounded-full border border-border px-3 py-1"
+              >
                 {product.name}
                 {product.isDemo ? " (sample)" : ""}
               </li>

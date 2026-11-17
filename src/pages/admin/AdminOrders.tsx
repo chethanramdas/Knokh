@@ -65,7 +65,12 @@ export default function AdminOrders() {
     perPage: 25,
   });
 
-  usePageMeta({ title: "Orders", noIndex: true, path: "/admin/orders", siteUrl: config?.seo.siteUrl });
+  usePageMeta({
+    title: "Orders",
+    noIndex: true,
+    path: "/admin/orders",
+    siteUrl: config?.seo.siteUrl,
+  });
 
   return (
     <div className="space-y-5">
@@ -118,7 +123,10 @@ export default function AdminOrders() {
       {orders === undefined ? (
         <LoadingBlock label="Loading orders…" />
       ) : orders.items.length === 0 ? (
-        <EmptyState title="No orders match" description="Adjust the filters to see more." />
+        <EmptyState
+          title="No orders match"
+          description="Adjust the filters to see more."
+        />
       ) : (
         <>
           <div className="overflow-x-auto rounded-xl border border-border bg-card">
@@ -138,7 +146,10 @@ export default function AdminOrders() {
                 {orders.items.map((order) => (
                   <tr key={order._id}>
                     <td className="px-3 py-3">
-                      <Link to={`/admin/orders/${order._id}`} className="font-medium hover:text-primary">
+                      <Link
+                        to={`/admin/orders/${order._id}`}
+                        className="font-medium hover:text-primary"
+                      >
                         {order.orderNumber}
                       </Link>
                       <p className="text-xs text-muted-foreground">
@@ -147,7 +158,9 @@ export default function AdminOrders() {
                     </td>
                     <td className="px-3 py-3">
                       <p>{order.customerName}</p>
-                      <p className="text-xs text-muted-foreground">{order.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {order.email}
+                      </p>
                     </td>
                     <td className="px-3 py-3 text-xs text-muted-foreground">
                       {formatDateTime(order.placedAt)}
@@ -173,7 +186,9 @@ export default function AdminOrders() {
                       </p>
                     </td>
                     <td className="px-3 py-3">
-                      <StatusPill tone="info">{titleCase(order.fulfilmentStatus)}</StatusPill>
+                      <StatusPill tone="info">
+                        {titleCase(order.fulfilmentStatus)}
+                      </StatusPill>
                     </td>
                     <td className="px-3 py-3">
                       <Button asChild size="sm" variant="outline">
@@ -185,7 +200,11 @@ export default function AdminOrders() {
               </tbody>
             </table>
           </div>
-          <Pagination page={orders.page} totalPages={orders.totalPages} onChange={setPage} />
+          <Pagination
+            page={orders.page}
+            totalPages={orders.totalPages}
+            onChange={setPage}
+          />
         </>
       )}
     </div>
@@ -223,7 +242,11 @@ export function AdminOrderDetail() {
   const [refund, setRefund] = useState({ amount: "", reason: "" });
   const [busy, setBusy] = useState(false);
 
-  usePageMeta({ title: "Order detail", noIndex: true, path: `/admin/orders/${orderId}` });
+  usePageMeta({
+    title: "Order detail",
+    noIndex: true,
+    path: `/admin/orders/${orderId}`,
+  });
 
   if (detail === undefined) return <LoadingBlock label="Loading order…" />;
   if (detail === null) {
@@ -241,7 +264,9 @@ export function AdminOrderDetail() {
   }
 
   const { order, items, shipments, refunds } = detail;
-  const related = (supplierOrders ?? []).filter((entry) => entry.orderId === order._id);
+  const related = (supplierOrders ?? []).filter(
+    (entry) => entry.orderId === order._id,
+  );
 
   return (
     <div className="space-y-5">
@@ -265,7 +290,9 @@ export function AdminOrderDetail() {
           <p className="text-muted-foreground">{order.shippingAddress.phone}</p>
           <p className="mt-2 text-muted-foreground">
             {order.shippingAddress.line1}
-            {order.shippingAddress.line2 ? `, ${order.shippingAddress.line2}` : ""}
+            {order.shippingAddress.line2
+              ? `, ${order.shippingAddress.line2}`
+              : ""}
             <br />
             {order.shippingAddress.city}, {order.shippingAddress.state}{" "}
             {order.shippingAddress.postalCode}
@@ -283,23 +310,29 @@ export function AdminOrderDetail() {
             {titleCase(order.paymentMethod)} · {order.provider ?? "no provider"}
           </p>
           <div className="mt-1 flex flex-wrap gap-2">
-            <StatusPill tone={order.paymentStatus === "paid" ? "success" : "warning"}>
+            <StatusPill
+              tone={order.paymentStatus === "paid" ? "success" : "warning"}
+            >
               {titleCase(order.paymentStatus)}
             </StatusPill>
-            <StatusPill tone="info">{titleCase(order.fulfilmentStatus)}</StatusPill>
+            <StatusPill tone="info">
+              {titleCase(order.fulfilmentStatus)}
+            </StatusPill>
           </div>
           <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
             {(payments?.payments ?? []).map((payment) => (
               <li key={payment._id}>
                 {payment.provider} · {titleCase(payment.status)} ·{" "}
                 {formatBase(payment.amountMinor, payment.currency)}
-                {payment.signatureVerified ? " · signature verified" : " · signature not verified"}
+                {payment.signatureVerified
+                  ? " · signature verified"
+                  : " · signature not verified"}
               </li>
             ))}
           </ul>
           <p className="mt-2 text-xs text-muted-foreground">
-            An order is only ever marked paid by a signature-verified callback or webhook. Changing
-            the status manually here does not move money.
+            An order is only ever marked paid by a signature-verified callback
+            or webhook. Changing the status manually here does not move money.
           </p>
         </div>
       </div>
@@ -312,7 +345,8 @@ export function AdminOrderDetail() {
               <div className="flex-1">
                 <p className="font-medium">{item.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {item.sku} · Qty {item.quantity} · supplier SKU {item.supplierSku ?? "unmapped"} ·{" "}
+                  {item.sku} · Qty {item.quantity} · supplier SKU{" "}
+                  {item.supplierSku ?? "unmapped"} ·{" "}
                   {titleCase(item.fulfilmentStatus)}
                 </p>
               </div>
@@ -321,11 +355,19 @@ export function AdminOrderDetail() {
           ))}
         </ul>
         <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3 text-sm">
-          <span>Subtotal {formatBase(order.subtotalMinor, order.currency)}</span>
-          <span>Discount {formatBase(order.discountMinor, order.currency)}</span>
-          <span>Shipping {formatBase(order.shippingMinor, order.currency)}</span>
+          <span>
+            Subtotal {formatBase(order.subtotalMinor, order.currency)}
+          </span>
+          <span>
+            Discount {formatBase(order.discountMinor, order.currency)}
+          </span>
+          <span>
+            Shipping {formatBase(order.shippingMinor, order.currency)}
+          </span>
           <span>Tax {formatBase(order.taxMinor, order.currency)}</span>
-          <span className="font-semibold">Total {formatBase(order.totalMinor, order.currency)}</span>
+          <span className="font-semibold">
+            Total {formatBase(order.totalMinor, order.currency)}
+          </span>
           <span className="text-muted-foreground">
             Recorded cost {formatBase(order.costTotalMinor, order.baseCurrency)}
           </span>
@@ -340,7 +382,8 @@ export function AdminOrderDetail() {
           {shipments.map((entry) => (
             <div key={entry._id} className="mt-2 text-sm">
               <p className="font-medium">
-                {entry.carrier} · {entry.trackingNumber} · {titleCase(entry.status)}
+                {entry.carrier} · {entry.trackingNumber} ·{" "}
+                {titleCase(entry.status)}
               </p>
               <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                 {entry.events.map((event, index) => (
@@ -365,9 +408,18 @@ export function AdminOrderDetail() {
                   status: shipment.status,
                 });
                 toast.success("Shipment recorded and the customer notified.");
-                setShipment({ carrier: "", trackingNumber: "", trackingUrl: "", status: "in_transit" });
+                setShipment({
+                  carrier: "",
+                  trackingNumber: "",
+                  trackingUrl: "",
+                  status: "in_transit",
+                });
               } catch (error) {
-                toast.error(error instanceof Error ? error.message : "Could not save the shipment.");
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not save the shipment.",
+                );
               } finally {
                 setBusy(false);
               }
@@ -380,7 +432,9 @@ export function AdminOrderDetail() {
                   id="s-carrier"
                   required
                   value={shipment.carrier}
-                  onChange={(event) => setShipment({ ...shipment, carrier: event.target.value })}
+                  onChange={(event) =>
+                    setShipment({ ...shipment, carrier: event.target.value })
+                  }
                 />
               </div>
               <div>
@@ -390,7 +444,10 @@ export function AdminOrderDetail() {
                   required
                   value={shipment.trackingNumber}
                   onChange={(event) =>
-                    setShipment({ ...shipment, trackingNumber: event.target.value })
+                    setShipment({
+                      ...shipment,
+                      trackingNumber: event.target.value,
+                    })
                   }
                 />
               </div>
@@ -399,7 +456,12 @@ export function AdminOrderDetail() {
                 <Input
                   id="s-url"
                   value={shipment.trackingUrl}
-                  onChange={(event) => setShipment({ ...shipment, trackingUrl: event.target.value })}
+                  onChange={(event) =>
+                    setShipment({
+                      ...shipment,
+                      trackingUrl: event.target.value,
+                    })
+                  }
                 />
               </div>
               <div>
@@ -408,45 +470,65 @@ export function AdminOrderDetail() {
                   id="s-status"
                   value={shipment.status}
                   onChange={(event) =>
-                    setShipment({ ...shipment, status: event.target.value as ShipmentStatus })
+                    setShipment({
+                      ...shipment,
+                      status: event.target.value as ShipmentStatus,
+                    })
                   }
                   className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm"
                 >
-                  {["label_created", "in_transit", "out_for_delivery", "delivered", "returned"].map(
-                    (value) => (
-                      <option key={value} value={value}>
-                        {titleCase(value)}
-                      </option>
-                    ),
-                  )}
+                  {[
+                    "label_created",
+                    "in_transit",
+                    "out_for_delivery",
+                    "delivered",
+                    "returned",
+                  ].map((value) => (
+                    <option key={value} value={value}>
+                      {titleCase(value)}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
             <Button type="submit" disabled={busy}>
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />} Save
-              shipment
+              {busy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Truck className="size-4" />
+              )}{" "}
+              Save shipment
             </Button>
           </form>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5">
-          <h2 className="text-sm font-semibold">Fulfilment & supplier routing</h2>
+          <h2 className="text-sm font-semibold">
+            Fulfilment & supplier routing
+          </h2>
           {related.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">
-              No supplier order queued yet. Fulfilment is queued automatically as soon as the
-              payment is confirmed.
+              No supplier order queued yet. Fulfilment is queued automatically
+              as soon as the payment is confirmed.
             </p>
           ) : (
             <ul className="mt-2 space-y-3 text-sm">
               {related.map((entry) => (
-                <li key={entry._id} className="rounded-lg border border-border p-3">
+                <li
+                  key={entry._id}
+                  className="rounded-lg border border-border p-3"
+                >
                   <p className="font-medium">
                     {entry.supplierName} · {titleCase(entry.status)}
                   </p>
                   {entry.responseSummary ? (
-                    <p className="mt-1 text-xs text-muted-foreground">{entry.responseSummary}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {entry.responseSummary}
+                    </p>
                   ) : null}
-                  {entry.status === "needs_manual_fulfilment" ? (
+                  {["needs_manual_fulfilment", "submitted"].includes(
+                    entry.status,
+                  ) ? (
                     <form
                       className="mt-2 flex flex-wrap items-end gap-2"
                       onSubmit={async (event) => {
@@ -455,25 +537,50 @@ export function AdminOrderDetail() {
                         try {
                           await manualFulfil({
                             supplierOrderId: entry._id,
-                            supplierOrderIdReference: String(data.get("ref") ?? "") || undefined,
-                            carrier: String(data.get("carrier") ?? "") || undefined,
-                            trackingNumber: String(data.get("tracking") ?? "") || undefined,
-                            trackingUrl: String(data.get("url") ?? "") || undefined,
+                            supplierOrderIdReference:
+                              String(data.get("ref") ?? "") || undefined,
+                            carrier:
+                              String(data.get("carrier") ?? "") || undefined,
+                            trackingNumber:
+                              String(data.get("tracking") ?? "") || undefined,
+                            trackingUrl:
+                              String(data.get("url") ?? "") || undefined,
                           });
-                          toast.success("Manual fulfilment recorded.");
+                          toast.success(
+                            "Supplier submission or shipment recorded.",
+                          );
                         } catch (error) {
                           toast.error(
-                            error instanceof Error ? error.message : "Could not record fulfilment.",
+                            error instanceof Error
+                              ? error.message
+                              : "Could not record fulfilment.",
                           );
                         }
                       }}
                     >
-                      <Input name="ref" placeholder="Supplier order ref" className="max-w-40" />
-                      <Input name="carrier" placeholder="Carrier" className="max-w-32" />
-                      <Input name="tracking" placeholder="Tracking no." className="max-w-40" />
-                      <Input name="url" placeholder="Tracking URL" className="max-w-48" />
+                      <Input
+                        name="ref"
+                        placeholder="Supplier order ref"
+                        className="max-w-40"
+                      />
+                      <Input
+                        name="carrier"
+                        placeholder="Carrier"
+                        className="max-w-32"
+                      />
+                      <Input
+                        name="tracking"
+                        placeholder="Tracking no."
+                        className="max-w-40"
+                      />
+                      <Input
+                        name="url"
+                        placeholder="Tracking URL"
+                        className="max-w-48"
+                      />
                       <Button type="submit" size="sm" variant="outline">
-                        <PackageCheck className="size-3.5" /> Mark fulfilled
+                        <PackageCheck className="size-3.5" /> Record submission
+                        / tracking
                       </Button>
                     </form>
                   ) : null}
@@ -491,11 +598,16 @@ export function AdminOrderDetail() {
                 try {
                   await updateStatus({
                     orderId: order._id,
-                    fulfilmentStatus: event.target.value as (typeof STATUSES)[number],
+                    fulfilmentStatus: event.target
+                      .value as (typeof STATUSES)[number],
                   });
                   toast.success("Status updated and the customer notified.");
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Could not update status.");
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Could not update status.",
+                  );
                 }
               }}
               className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm"
@@ -514,32 +626,41 @@ export function AdminOrderDetail() {
         <h2 className="text-sm font-semibold">Refunds</h2>
         <ul className="mt-2 space-y-2 text-sm">
           {refunds.map((entry) => (
-            <li key={entry._id} className="flex flex-wrap items-center justify-between gap-2">
+            <li
+              key={entry._id}
+              className="flex flex-wrap items-center justify-between gap-2"
+            >
               <span>
                 {formatBase(entry.amountMinor, entry.currency)} · {entry.reason}
                 <span className="ml-2 text-xs text-muted-foreground">
                   {titleCase(entry.status)}
-                  {entry.providerRefundId ? ` · provider ${entry.providerRefundId}` : ""}
+                  {entry.providerRefundId
+                    ? ` · provider ${entry.providerRefundId}`
+                    : ""}
                 </span>
               </span>
               <span className="flex gap-1">
-                {(["approved", "completed", "rejected"] as const).map((status) => (
-                  <Button
-                    key={status}
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      await setRefundStatus({ refundId: entry._id, status });
-                      toast.success(`Refund marked ${status}.`);
-                    }}
-                  >
-                    {titleCase(status)}
-                  </Button>
-                ))}
+                {(["approved", "completed", "rejected"] as const).map(
+                  (status) => (
+                    <Button
+                      key={status}
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        await setRefundStatus({ refundId: entry._id, status });
+                        toast.success(`Refund marked ${status}.`);
+                      }}
+                    >
+                      {titleCase(status)}
+                    </Button>
+                  ),
+                )}
               </span>
             </li>
           ))}
-          {refunds.length === 0 ? <li className="text-muted-foreground">No refunds recorded.</li> : null}
+          {refunds.length === 0 ? (
+            <li className="text-muted-foreground">No refunds recorded.</li>
+          ) : null}
         </ul>
 
         <form
@@ -558,7 +679,11 @@ export function AdminOrderDetail() {
               );
               setRefund({ amount: "", reason: "" });
             } catch (error) {
-              toast.error(error instanceof Error ? error.message : "Could not create the refund.");
+              toast.error(
+                error instanceof Error
+                  ? error.message
+                  : "Could not create the refund.",
+              );
             }
           }}
         >
@@ -569,7 +694,9 @@ export function AdminOrderDetail() {
               inputMode="decimal"
               required
               value={refund.amount}
-              onChange={(event) => setRefund({ ...refund, amount: event.target.value })}
+              onChange={(event) =>
+                setRefund({ ...refund, amount: event.target.value })
+              }
             />
           </div>
           <div>
@@ -578,7 +705,9 @@ export function AdminOrderDetail() {
               id="r-reason"
               rows={1}
               value={refund.reason}
-              onChange={(event) => setRefund({ ...refund, reason: event.target.value })}
+              onChange={(event) =>
+                setRefund({ ...refund, reason: event.target.value })
+              }
             />
           </div>
           <div className="flex items-end">
@@ -588,9 +717,9 @@ export function AdminOrderDetail() {
           </div>
         </form>
         <p className="mt-2 text-xs text-muted-foreground">
-          Gateway refunds are sent to the provider from the refund action once the provider
-          credentials are configured; otherwise record the refund manually and keep the reference
-          here.
+          Gateway refunds are sent to the provider from the refund action once
+          the provider credentials are configured; otherwise record the refund
+          manually and keep the reference here.
         </p>
       </div>
     </div>
