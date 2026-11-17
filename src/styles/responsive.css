@@ -41,7 +41,7 @@
   .knokh-header-wishlist { display: none; } /* Remains available in bottom navigation. */
   .knokh-header-actions { gap: 0; }
   .knokh-product-card .knokh-product-actions { flex-wrap: wrap; }
-  .knokh-product-card .knokh-product-actions > * { flex-basis: 100%; min-width: 0; min-height: 44px; }
+  .knokh-product-card .knokh-product-actions > * { flex-basis: 100%; min-width: 0; min-height: 44px; height: auto; padding-block: .5rem; white-space: normal; }
 }
 @media (max-width: 479px) {
   .knokh-hero-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
