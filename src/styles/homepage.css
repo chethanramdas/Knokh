@@ -85,9 +85,5 @@
 
 .knokh-homepage dl > div, .knokh-homepage .knokh-product-section article { min-width: 0; }
 .knokh-homepage dt, .knokh-homepage dd { overflow-wrap: anywhere; }
-@media (max-width: 639px) {
-  .knokh-homepage .knokh-product-section article .mt-auto { flex-wrap: wrap; }
-  .knokh-homepage .knokh-product-section article .mt-auto > * { flex-basis: 100%; min-width: 0; }
-}
 
 .knokh-homepage .knokh-store-content { scroll-margin-top: calc(var(--knokh-header-height, 0px) + 1rem); }

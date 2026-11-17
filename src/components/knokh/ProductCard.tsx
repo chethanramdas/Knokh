@@ -62,7 +62,7 @@ export function ProductCard({
   return (
     <article
       className={cn(
-        "group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40",
+        "knokh-product-card group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary/40",
         className,
       )}
     >
@@ -119,7 +119,7 @@ export function ProductCard({
           {product.inStock ? shipNote : "Currently unavailable"}
           {product.hasVariants ? ` · ${product.variantCount} options` : ""}
         </p>
-        <div className="mt-auto flex gap-2 pt-1">
+        <div className="knokh-product-actions mt-auto flex gap-2 pt-1">
           <Button
             type="button"
             size="sm"

@@ -14,6 +14,9 @@
 .knokh-announcement > div { height: auto; min-height: 2.25rem; padding-block: .375rem; }
 .knokh-announcement p { min-width: 0; overflow-wrap: anywhere; }
 .knokh-account-shell, .knokh-admin-shell, .knokh-auth-page { overflow-wrap: anywhere; }
+.knokh-store-content { overflow-wrap: anywhere; }
+.knokh-store-content .grid > *, .knokh-account-shell .grid > *, .knokh-admin-shell main .grid > * { min-width: 0; }
+.knokh-product-card { min-width: 0; }
 .knokh-account-shell nav a, .knokh-auth-page button { min-height: 44px; }
 .knokh-auth-page form, .knokh-auth-page [data-slot="card-header"] { min-width: 0; }
 .knokh-homepage .knokh-hero-layout { padding-block: clamp(1.75rem, 4vw, 4.5rem); }
@@ -37,6 +40,8 @@
   .knokh-header-row a[aria-label="KNOKH home"] img { width: clamp(112px, 34vw, 144px); }
   .knokh-header-wishlist { display: none; } /* Remains available in bottom navigation. */
   .knokh-header-actions { gap: 0; }
+  .knokh-product-card .knokh-product-actions { flex-wrap: wrap; }
+  .knokh-product-card .knokh-product-actions > * { flex-basis: 100%; min-width: 0; min-height: 44px; }
 }
 @media (max-width: 479px) {
   .knokh-hero-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
