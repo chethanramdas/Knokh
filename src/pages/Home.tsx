@@ -54,16 +54,16 @@ function Hero({
   const { config, zone } = useStore();
   const [term, setTerm] = useState("");
   return (
-    <section className="knokh-home-hero">
-      <Container className={`grid min-w-0 gap-8 py-10 sm:py-14 lg:items-center lg:py-16 ${featuredCategories.length ? "lg:grid-cols-[1.15fr_1fr]" : ""}`}>
-        <div>
+    <section className={`knokh-home-hero ${featuredCategories.length ? "" : "knokh-home-hero--text-only"}`}>
+      <Container className={`knokh-hero-layout grid min-w-0 gap-8 lg:items-center ${featuredCategories.length ? "lg:grid-cols-[1.15fr_1fr]" : ""}`}>
+        <div className="knokh-hero-copy min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#764000]">
             {BRAND.tagline}
           </p>
-          <h1 className="mt-3 max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="knokh-hero-title mt-3 max-w-3xl text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
             {section?.title ?? "Discover More. Shop Smarter."}
           </h1>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
+          <p className="knokh-hero-summary mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
             {section?.subtitle ??
               "A curated multi-category marketplace with transparent pricing and delivery. Browse electronics, fashion, home, beauty, fitness, toys, travel, office and automotive products."}
           </p>
@@ -90,7 +90,7 @@ function Hero({
               Search
             </Button>
           </form>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="knokh-hero-actions mt-6 flex flex-wrap gap-3">
             <Button asChild size="lg" variant="default">
               <Link to={section?.ctaHref ?? "/shop"}>
                 {section?.ctaLabel ?? "Shop all products"} <ArrowRight className="size-4" />
@@ -100,7 +100,7 @@ function Hero({
               <Link to="/categories">Browse categories</Link>
             </Button>
           </div>
-          <dl className="mt-8 grid max-w-lg grid-cols-3 gap-4 text-sm">
+          <dl className="knokh-hero-metrics mt-8 grid max-w-lg grid-cols-3 gap-4 text-sm">
             <div>
               <dt className="text-muted-foreground">Featured categories</dt>
               <dd className="text-lg font-bold">{featuredCategories.length}</dd>

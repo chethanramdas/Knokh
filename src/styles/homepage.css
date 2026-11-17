@@ -28,13 +28,7 @@
 }
 .knokh-homepage .knokh-announcement { background: #fff8e5; color: #59442c; }
 .knokh-homepage .knokh-store-header { background: rgb(255 255 255 / 78%); border-color: rgb(118 64 0 / 22%); }
-.knokh-homepage .knokh-header-row { height: auto; min-height: 5rem; gap: .75rem; }
-.knokh-homepage .knokh-header-row > * { min-width: 0; }
-.knokh-homepage .knokh-header-row button,
-.knokh-homepage .knokh-header-row a[aria-label="Wishlist"],
-.knokh-homepage .knokh-header-row a[aria-label="Cart"] { min-width: 44px; min-height: 44px; }
-.knokh-homepage .knokh-desktop-nav { overflow-x: auto; scrollbar-width: thin; padding-bottom: .75rem; }
-.knokh-homepage .knokh-desktop-nav a { flex-shrink: 0; white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; color: #59442c; }
+.knokh-homepage .knokh-desktop-nav a { color: #59442c; }
 .knokh-homepage .knokh-desktop-nav a:hover { color: #2b2115; background: #fff0c2; }
 .knokh-homepage .knokh-search-box input,
 .knokh-homepage .knokh-hero-search input {
@@ -77,9 +71,6 @@
 .knokh-skip-link { position: fixed; left: 1rem; top: -8rem; z-index: 100; padding: .75rem 1rem; border-radius: .5rem; background: #fff; color: #2b2115; }
 .knokh-skip-link:focus { top: 1rem; outline: 3px solid #764000; }
 @media (max-width: 639px) {
-  .knokh-homepage .knokh-header-row { gap: .25rem; min-height: 4.5rem; }
-  .knokh-homepage .knokh-header-row a[aria-label="KNOKH home"] img { width: clamp(112px, 34vw, 144px); }
-  .knokh-homepage .knokh-header-wishlist { display: none; } /* Also available in bottom navigation. */
   .knokh-homepage .knokh-hero-search button { padding-inline: .875rem; }
   .knokh-homepage .knokh-home-discovery { padding-bottom: 1rem; }
 }

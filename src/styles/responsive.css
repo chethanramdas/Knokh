@@ -1,0 +1,47 @@
+/* Shared layouts shrink to the viewport; only navigation and tables scroll sideways. */
+.knokh-header-row { height: auto; min-height: 4.5rem; gap: .75rem; }
+.knokh-header-row > * { min-width: 0; }
+.knokh-header-row button,
+.knokh-header-row a[aria-label="Wishlist"],
+.knokh-header-row a[aria-label="Cart"] { min-width: 44px; min-height: 44px; }
+.knokh-header-actions > div { min-width: 0; }
+.knokh-header-actions button > span { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; }
+.knokh-currency-selectors select { min-width: 0; max-width: 10rem; }
+.knokh-currency-selectors select:last-child { flex: 1; }
+.knokh-desktop-nav { overflow-x: auto; scrollbar-width: thin; padding-bottom: .75rem; }
+.knokh-desktop-nav a { flex-shrink: 0; white-space: nowrap; min-height: 44px; display: inline-flex; align-items: center; }
+.knokh-bottom-nav a { min-height: 56px; }
+.knokh-announcement > div { height: auto; min-height: 2.25rem; padding-block: .375rem; }
+.knokh-announcement p { min-width: 0; overflow-wrap: anywhere; }
+.knokh-account-shell, .knokh-admin-shell, .knokh-auth-page { overflow-wrap: anywhere; }
+.knokh-account-shell nav a, .knokh-auth-page button { min-height: 44px; }
+.knokh-auth-page form, .knokh-auth-page [data-slot="card-header"] { min-width: 0; }
+.knokh-homepage .knokh-hero-layout { padding-block: clamp(1.75rem, 4vw, 4.5rem); }
+.knokh-homepage .knokh-hero-title { font-size: clamp(2rem, 1.15rem + 3vw, 4.25rem); line-height: 1.1; text-wrap: balance; }
+.knokh-hero-actions > a { min-width: 0; min-height: 48px; height: auto; white-space: normal; padding-block: .75rem; text-align: center; }
+.knokh-hero-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 1024px) {
+  .knokh-home-hero--text-only .knokh-hero-copy { width: 100%; max-width: 56rem; margin-inline: auto; text-align: center; }
+  .knokh-home-hero--text-only .knokh-hero-title,
+  .knokh-home-hero--text-only .knokh-hero-summary,
+  .knokh-home-hero--text-only .knokh-hero-search,
+  .knokh-home-hero--text-only .knokh-hero-metrics { margin-inline: auto; }
+  .knokh-home-hero--text-only .knokh-hero-actions { justify-content: center; }
+}
+@media (max-width: 1023px) {
+  .knokh-header-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .knokh-header-row a[aria-label="KNOKH home"] img { max-width: 100%; height: auto; }
+}
+@media (max-width: 639px) {
+  .knokh-header-row { gap: .25rem; }
+  .knokh-header-row a[aria-label="KNOKH home"] img { width: clamp(112px, 34vw, 144px); }
+  .knokh-header-wishlist { display: none; } /* Remains available in bottom navigation. */
+  .knokh-header-actions { gap: 0; }
+}
+@media (max-width: 479px) {
+  .knokh-hero-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .knokh-hero-metrics { gap: .75rem; }
+}
+@media (max-height: 500px) {
+  .knokh-store-header, .knokh-admin-shell > header { position: relative; }
+}

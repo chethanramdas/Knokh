@@ -163,7 +163,7 @@ function CurrencyCountrySelectors({ compact = false }: { compact?: boolean }) {
   const currencies = config?.currencies.filter((entry) => entry.enabled) ?? [];
   const zones = config?.shippingZones ?? [];
   return (
-    <div className="flex items-center gap-2">
+    <div className="knokh-currency-selectors flex min-w-0 items-center gap-2">
       <select
         aria-label="Display currency"
         value={currency}
@@ -215,6 +215,7 @@ function AccountMenu() {
         variant="ghost"
         size="sm"
         className="gap-2"
+        aria-label={isAuthenticated ? "Account menu" : "Sign in"}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(event) => {
@@ -385,7 +386,7 @@ function BottomNav() {
   ];
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur lg:hidden"
+      className="knokh-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Primary"
     >
@@ -589,7 +590,7 @@ export function StoreShell() {
   const isHome = location.pathname === "/";
 
   return (
-    <div className={cn("knokh-store-shell flex min-h-screen flex-col", isHome && "knokh-homepage")}>
+    <div className={cn("knokh-store-shell flex min-h-svh min-w-0 flex-col", isHome && "knokh-homepage")}>
       <a href="#store-content" className="knokh-skip-link">Skip to content</a>
       <div className="knokh-announcement border-b border-border bg-primary text-primary-foreground">
         <Container className="flex h-9 items-center justify-between text-xs">
@@ -617,7 +618,7 @@ export function StoreShell() {
           <MobileMenu />
           <LogoLink className="shrink-0" />
           <SearchBox className="hidden flex-1 lg:block" />
-          <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          <div className="knokh-header-actions ml-auto flex min-w-0 items-center gap-1 sm:gap-2">
             <div className="hidden xl:block">
               <CurrencyCountrySelectors />
             </div>
@@ -690,7 +691,7 @@ export function StoreShell() {
         ) : null}
       </header>
 
-      <main id="store-content" tabIndex={-1} className="knokh-store-content flex-1">
+      <main id="store-content" tabIndex={-1} className="knokh-store-content min-w-0 flex-1">
         <Outlet />
       </main>
 
