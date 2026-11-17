@@ -12,7 +12,7 @@ export function Container({
   className?: string;
 }) {
   return (
-    <div className={cn("mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8", className)}>
+    <div className={cn("mx-auto w-full min-w-0 max-w-7xl px-4 sm:px-6 lg:px-8", className)}>
       {children}
     </div>
   );
@@ -31,7 +31,7 @@ export function SectionHeading({
 }) {
   return (
     <div className={cn("flex flex-wrap items-end justify-between gap-3", className)}>
-      <div>
+      <div className="min-w-0 max-w-full">
         <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h2>
         {subtitle ? (
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{subtitle}</p>

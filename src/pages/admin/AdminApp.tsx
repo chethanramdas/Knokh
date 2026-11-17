@@ -314,23 +314,34 @@ export default function AdminApp() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="knokh-admin-shell min-h-svh min-w-0 bg-background">
       <header className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur">
-        <Container className="flex items-center justify-between py-3">
-          <Link to="/admin" className="flex items-center gap-2 text-lg font-semibold">
-            <ArrowRight className="size-5 text-primary" />
-            KNOKH
-            <span className="text-xs text-muted-foreground font-normal">Admin</span>
-          </Link>
-
-          <nav className="hidden sm:flex items-center gap-1">
+        <Container className="py-3">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <Link to="/admin" className="flex shrink-0 items-center gap-2 text-lg font-semibold">
+              <ArrowRight className="size-5 text-primary" />
+              KNOKH
+              <span className="text-xs font-normal text-muted-foreground">Admin</span>
+            </Link>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="hidden max-w-48 truncate text-xs text-muted-foreground sm:inline">
+                {user?.name || user?.email ? String(user?.name || user?.email) : "Admin"}
+              </span>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/" className="flex items-center gap-1 text-xs">
+                  <ArrowRight className="size-3.5" /> Storefront
+                </Link>
+              </Button>
+            </div>
+          </div>
+          <nav aria-label="Administrator navigation" className="mt-3 flex min-w-0 max-w-full items-center gap-1 overflow-x-auto pb-1">
             {ADMIN_SECTIONS.map((item) => (
               <NavLink
                 key={item.href}
                 to={item.href}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                    "flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:text-foreground",
@@ -340,23 +351,12 @@ export default function AdminApp() {
                 <item.icon className="size-4" />
                 {item.label}
               </NavLink>
-))}
+            ))}
           </nav>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              {user?.name || user?.email ? String(user?.name || user?.email) : "Admin"}
-            </span>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/" className="flex items-center gap-1 text-xs">
-                <ArrowRight className="size-3.5" /> Storefront
-              </Link>
-            </Button>
-          </div>
         </Container>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <Outlet />
       </main>
     </div>

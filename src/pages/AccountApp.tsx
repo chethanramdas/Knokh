@@ -34,7 +34,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { ACCOUNT_NAV } from "@/lib/brand";
 import { formatDate, formatDateTime, titleCase } from "@/lib/format";
-import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +45,7 @@ export default function AccountApp() {
   const cartCount = useStore().cartCount;
 
   return (
-    <Container className="py-8">
+    <Container className="knokh-account-shell py-6 sm:py-8">
       <SectionHeading
         title={user?.name ? `Hello, ${user.name.split(" ")[0]}` : "Your account"}
         subtitle="Orders, addresses, wishlist, returns and privacy controls in one place."
@@ -61,9 +60,9 @@ export default function AccountApp() {
         </InfoNote>
       ) : null}
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[240px_1fr]">
-        <aside>
-          <nav className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
+      <div className="mt-6 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="min-w-0">
+          <nav aria-label="Account navigation" className="flex min-w-0 max-w-full gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
             {ACCOUNT_NAV.map((item) => (
               <NavLink
                 key={item.href}
@@ -94,7 +93,7 @@ export default function AccountApp() {
             </NavLink>
           </nav>
         </aside>
-        <div>
+        <div className="min-w-0">
           <Outlet />
         </div>
       </div>

@@ -110,13 +110,13 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="knokh-auth-page flex min-h-svh flex-col p-4 sm:p-6">
 
       
       {/* Auth Content */}
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex items-center justify-center h-full flex-col">
-        <Card className="min-w-[350px] pb-0 border shadow-md">
+        <div className="flex w-full min-w-0 max-w-md flex-col items-center justify-center">
+        <Card className="w-full min-w-0 pb-0 border shadow-md">
           {step === "signIn" ? (
             <>
               <CardHeader className="text-center">
@@ -139,7 +139,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                 <CardContent>
                   
                   <div className="relative flex items-center gap-2">
-                    <div className="relative flex-1">
+                    <div className="relative min-w-0 flex-1">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input
                         name="email"
@@ -152,6 +152,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     </div>
                     <Button
                       type="submit"
+                      aria-label="Send verification code"
                       variant="outline"
                       size="icon"
                       disabled={isLoading}
