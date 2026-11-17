@@ -67,11 +67,13 @@ strict type checks still pass. The test harness and authenticated fixture feed
 are deployed from a separate staging-only source copy; neither is part of the
 production release tree. No production data was imported into staging.
 
-Real staging email delivery is not yet verified: automatic approval review
-rejected copying the production Resend secret into staging. No production email
-credential was copied. A separately approved sending credential is required for
-real email delivery tests. Other cloud integration test results are recorded in
-the PR before merge; a frontend preview does not establish provider connectivity.
+Real staging email delivery and OTP verification subsequently passed using a
+dedicated Resend sending-only key restricted to knokh.com. The connected Resend
+service reports the domain verified for sending. The owner entered the OTP
+through the secure browser authentication form and established a real session.
+No production email credential was copied; automatic approval review rejected
+that approach, so staging uses its own restricted credential. A frontend preview
+alone does not establish backend or provider connectivity.
 
 ### Cloud integration evidence
 Eleven checks passed against the real isolated cloud backend on 2026-11-16:
@@ -96,9 +98,11 @@ Browser checks confirmed working search and product detail navigation, anonymous
 
 These checks caught two existing storefront defects: product cards/details omitted the guest ownership key in add-to-cart requests, and checkout navigated to an unregistered `/order/:orderId` URL. The release now passes the guest key from both purchase controls and retains both confirmation URL forms. Product-local selections reset through a keyed product component instead of synchronous effect state updates. All 44 tests, strict types and production build pass. Changed cart/product components lint without errors; the entry-point lint has two existing Fast Refresh warnings.
 
-The updated isolated preview verified additions from both product detail and catalog cards, persisted guest totals, server rejection of an invalid Indian PIN, and creation of a synthetic COD order with a manual supplier task. No real payment or external supplier order was placed. Actual email OTP delivery and verified administrator browser access still require dedicated staging email configuration; isolated backend authorization tests already pass.
+The updated isolated preview verified additions from both product detail and catalog cards, persisted guest totals, server rejection of an invalid Indian PIN, and creation of a synthetic COD order with a manual supplier task. No real payment or external supplier order was placed.
+
+After email verification, the authorised owner received a staging administrator role through the existing administrator-only role mutation, with an audit record. Browser checks passed for the supplier dashboard, manual supplier creation/configuration, real CSV file upload and supplier-SKU mapping, preview and committed draft import, stock increment/decrement, order review and manual shipment recording. The INR calculator returned a contribution of 150 and 30% margin for sale 500 less supplier cost 200, shipping 50, fees 20, return reserve 30 and tax 50. A dashboard-queued fixture-feed job was processed successfully by the actual background worker. These fixtures are staging-only; no supplier API or real shipment is claimed.
 
 ### Production backup and outstanding release gates
-Before any production code deployment, a manual Convex backup including file storage completed at 2026-11-16 15:34:08 UTC. The downloaded ZIP passed CRC verification. Its SHA-256 is `4958a8a6391770b93419774afc42fc995b3918c253528188ad12df686b7da519`. The archive stays private; no customer records, session data or credentials belong in this repository. Dashboard backups expire after seven days; code, environment variables and scheduled functions require separate rollback planning.
+Before any production code deployment, a fresh manual Convex backup including file storage completed at 2026-11-17 11:19:05 IST (05:49:05 UTC). The downloaded ZIP passed CRC verification. Its SHA-256 is `ba44cc662dadeb16c3d298b3c0c75239094549eece1d6bc4dd9ce7a73534617b`. The previous verified backup remains available in the dashboard. The archive stays private; no customer records, session data or credentials belong in this repository. Dashboard backups expire after seven days; code, environment variables and scheduled functions require separate rollback planning.
 
-The supplier release is **not yet merged or deployed to production**. Remaining gates are a dedicated staging email credential and actual OTP delivery/verification, verified administrator browser workflows, production deployment access and post-deployment verification. Preserve the existing production email credential; do not copy it into staging. Automatic supplier purchasing remains disabled after this release as well.
+The supplier release is **not yet merged or deployed to production**. Staging email, administrator and supplier browser checks have passed. A fresh clean checkout passed dependency installation, all 44 tests, strict TypeScript, the production frontend build, scoped changed-code ESLint and the production dependency audit (zero reported vulnerabilities) on 2026-11-17. The remaining gates are production backend deployment access and post-deployment verification. Preserve existing production credentials, accounts and data. Automatic supplier purchasing remains disabled after this release as well. A full mobile viewport matrix and real provider sandbox connections are not claimed.
