@@ -1,11 +1,12 @@
 import { useMutation } from "convex/react";
 import { Heart, Loader2, ShoppingCart } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { cartErrorMessage } from "@/lib/cartErrors";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import type { ProductCardData } from "@/lib/types";
@@ -23,10 +24,11 @@ export function ProductCard({
   product: ProductCardData;
   className?: string;
 }) {
-  const { guestKey, money, isWishlisted, toggleWishlist, zone } = useStore();
+  const { guestKey, money, isWishlisted, toggleWishlist, zone, currency } = useStore();
   const addToCart = useMutation(api.cart.addToCart);
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
+  const adding = useRef(false);
   const wished = isWishlisted(String(product._id));
 
   const shipNote = zone
@@ -38,10 +40,13 @@ export function ProductCard({
       navigate(`/product/${product.slug}`);
       return;
     }
+    if (adding.current || !guestKey) return;
+    adding.current = true;
     setIsAdding(true);
     try {
       const result = await addToCart({
-        guestKey: guestKey || undefined,
+        guestKey,
+        currency,
         productId: product._id as Id<"products">,
         quantity: 1,
       });
@@ -52,9 +57,10 @@ export function ProductCard({
       });
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not add this item to your cart.",
+        cartErrorMessage(error, "Could not add this item to your cart. Please try again."),
       );
     } finally {
+      adding.current = false;
       setIsAdding(false);
     }
   };
@@ -124,7 +130,7 @@ export function ProductCard({
             type="button"
             size="sm"
             className="flex-1"
-            disabled={isAdding || !product.inStock}
+            disabled={isAdding || !guestKey || !product.inStock}
             onClick={() => void handleAdd()}
           >
             {isAdding ? (
