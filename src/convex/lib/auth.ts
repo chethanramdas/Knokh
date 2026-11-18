@@ -1,3 +1,5 @@
+import { ConvexError } from "convex/values";
+import { isValidCartSessionKey } from "../../lib/cartSession";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -51,8 +53,8 @@ export function resolveOwnerKey(
   guestKey?: string,
 ): string {
   if (userId) return `user:${userId}`;
-  if (guestKey && /^[a-zA-Z0-9-]{8,64}$/.test(guestKey)) return `anon:${guestKey}`;
-  throw new Error("A valid cart session key is required.");
+  if (isValidCartSessionKey(guestKey)) return `anon:${guestKey}`;
+  throw new ConvexError("Your cart session is not ready. Please refresh and try again.");
 }
 
 export async function writeAuditLog(

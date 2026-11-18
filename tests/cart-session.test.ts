@@ -6,7 +6,7 @@ import { api } from "../src/convex/_generated/api";
 const modules = import.meta.glob(["../src/convex/**/*.ts", "../src/convex/_generated/*.js", "!../src/convex/**/*.d.ts"]);
 const valid = "d".repeat(32);
 describe("production missing guest session regression", () => {
-  test.each([null, "", "bad_key", "anon:legacy-key", "x".repeat(65)])("initializes a valid session from %s before calling the unchanged production cart API", async (initial) => {
+  test.each([null, "", "bad_key", "anon:legacy-key", "x".repeat(65)])("initializes a valid session from %s before calling the cart API", async (initial) => {
     let saved = initial;
     const storage = { getItem: () => saved, setItem: (_: string, value: string) => { saved = value; } };
     const session = createCartSession(() => storage, "guest", () => valid);
@@ -15,7 +15,7 @@ describe("production missing guest session regression", () => {
       sku: "REGRESSION", slug: "regression", name: "Regression fixture", images: [],
       priceMinor: 10000, currency: "INR", stock: 5, status: "published", updatedAt: 1,
     }));
-    await expect(t.mutation(api.cart.addToCart, { productId })).rejects.toThrow(/valid cart session key/);
+    await expect(t.mutation(api.cart.addToCart, { productId })).rejects.toThrow(/cart session is not ready/);
     await t.mutation(api.cart.addToCart, { productId, guestKey: session() });
     expect(saved).toBe(valid);
     expect(await t.query(api.cart.getCartCount, { guestKey: session() })).toBe(1);

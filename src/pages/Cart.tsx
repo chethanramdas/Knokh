@@ -27,7 +27,7 @@ import { useStore } from "@/lib/store";
 import { cartErrorMessage } from "@/lib/cartErrors";
 
 export default function Cart() {
-  const { guestKey, currency, country, config, moneyLocal } = useStore();
+  const { guestKey, currency, country, config, moneyLocal, money } = useStore();
   const cart = useQuery(api.cart.getCart, {
     guestKey: guestKey || undefined,
     currency,
@@ -238,7 +238,7 @@ export default function Cart() {
             {cart.missingForFreeShippingBaseMinor > 0 && cart.freeShippingThresholdBaseMinor > 0 ? (
               <p className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
                 <Truck className="mt-0.5 size-3.5" />
-                Add {moneyLocal(cart.missingForFreeShippingBaseMinor)} more to qualify for free
+                Add {money(cart.missingForFreeShippingBaseMinor)} more to qualify for free
                 standard delivery.
               </p>
             ) : null}

@@ -150,7 +150,7 @@ describe("supplier safety", () => {
     expect(cart?.subtotalMinor).toBe(20000);
     await expect(
       t.mutation(api.cart.addToCart, { productId: ids.p, quantity: 1 }),
-    ).rejects.toThrow(/valid cart session key/);
+    ).rejects.toThrow(/cart session is not ready/);
     expect((await t.run((ctx) => ctx.db.get(ids.p)))?.stock).toBe(8);
   });
   test("customer COD checkout reserves stock and creates one manual supplier task", async () => {
