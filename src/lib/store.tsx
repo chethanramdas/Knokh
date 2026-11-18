@@ -3,12 +3,15 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 import { createCartSession } from "./cartSession";
+import { cartErrorMessage } from "./cartErrors";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { BRAND, STORAGE_KEYS } from "./brand";
@@ -191,6 +194,7 @@ const getGuestSession = createCartSession(
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const config = useQuery(api.catalog.getStoreConfig) as StoreConfig | undefined;
+  const { user } = useAuth();
   // Initialize before rendering any cart button or starting any cart query.
   const [guestKey] = useState(getGuestSession);
   const [visitorKey] = useState(() => {
@@ -201,6 +205,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [currencyPreference, setCurrencyState] = useState(() => readStorage(STORAGE_KEYS.currency));
   const [country, setCountryState] = useState(() => readStorage(STORAGE_KEYS.country) || "IN");
   const currency = currencyPreference || config?.viewer.defaultCurrency || config?.commerce.defaultCurrency || "INR";
+  const adoptGuestCart = useMutation(api.cart.adoptGuestCart);
+
+  useEffect(() => {
+    if (!user?._id) return;
+    let active = true;
+    // The mutation is transactional and repeat-safe, including StrictMode/remounts.
+    void adoptGuestCart({ guestKey }).catch((error: unknown) => {
+      if (active) toast.error(cartErrorMessage(error, "Could not merge your guest cart. Your saved items are retained; please refresh to retry."));
+    });
+    return () => { active = false; };
+  }, [user?._id, guestKey, adoptGuestCart]);
+
   const cartCount = useQuery(api.cart.getCartCount, {
     guestKey: guestKey || undefined,
   });
