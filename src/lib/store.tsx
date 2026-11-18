@@ -3,12 +3,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
+import { createCartSession } from "./cartSession";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { BRAND, STORAGE_KEYS } from "./brand";
@@ -183,38 +183,24 @@ function randomKey(): string {
     .join("");
 }
 
+const getGuestSession = createCartSession(
+  () => typeof window === "undefined" ? null : window.localStorage,
+  STORAGE_KEYS.guestKey,
+  randomKey,
+);
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const config = useQuery(api.catalog.getStoreConfig) as StoreConfig | undefined;
-  const [guestKey, setGuestKey] = useState("");
-  const [visitorKey, setVisitorKey] = useState("");
-  const [currency, setCurrencyState] = useState("INR");
-  const [country, setCountryState] = useState("IN");
-
-  useEffect(() => {
-    const storedGuest = readStorage(STORAGE_KEYS.guestKey) ?? randomKey();
-    writeStorage(STORAGE_KEYS.guestKey, storedGuest);
-    setGuestKey(storedGuest);
-
-    const storedVisitor = readStorage(STORAGE_KEYS.visitor) ?? randomKey();
-    writeStorage(STORAGE_KEYS.visitor, storedVisitor);
-    setVisitorKey(storedVisitor);
-
-    const storedCurrency = readStorage(STORAGE_KEYS.currency);
-    if (storedCurrency) setCurrencyState(storedCurrency);
-    const storedCountry = readStorage(STORAGE_KEYS.country);
-    if (storedCountry) setCountryState(storedCountry);
-  }, []);
-
-  useEffect(() => {
-    if (!config) return;
-    const storedCurrency = readStorage(STORAGE_KEYS.currency);
-    if (!storedCurrency) {
-      const preferred =
-        config.viewer.defaultCurrency || config.commerce.defaultCurrency;
-      setCurrencyState(preferred);
-    }
-  }, [config]);
-
+  // Initialize before rendering any cart button or starting any cart query.
+  const [guestKey] = useState(getGuestSession);
+  const [visitorKey] = useState(() => {
+    const key = readStorage(STORAGE_KEYS.visitor) || randomKey();
+    writeStorage(STORAGE_KEYS.visitor, key);
+    return key;
+  });
+  const [currencyPreference, setCurrencyState] = useState(() => readStorage(STORAGE_KEYS.currency));
+  const [country, setCountryState] = useState(() => readStorage(STORAGE_KEYS.country) || "IN");
+  const currency = currencyPreference || config?.viewer.defaultCurrency || config?.commerce.defaultCurrency || "INR";
   const cartCount = useQuery(api.cart.getCartCount, {
     guestKey: guestKey || undefined,
   });
@@ -234,7 +220,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     writeStorage(STORAGE_KEYS.country, code.toUpperCase());
   }, []);
 
-  const currencies = config?.currencies ?? [];
+  const currencies = useMemo(() => config?.currencies ?? [], [config?.currencies]);
   const currencyConfig =
     currencies.find((entry) => entry.code === currency) ??
     currencies.find((entry) => entry.code === "INR") ??

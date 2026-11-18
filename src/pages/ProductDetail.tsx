@@ -10,7 +10,7 @@ import {
   ShoppingCart,
   Truck,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { productJsonLd, usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
+import { cartErrorMessage } from "@/lib/cartErrors";
 import { cn } from "@/lib/utils";
 
 export default function ProductDetail() {
@@ -41,7 +42,7 @@ export default function ProductDetail() {
 }
 
 function ProductDetailContent({ slug }: { slug: string }) {
-  const { guestKey, money, isWishlisted, toggleWishlist, zone, config, country } =
+  const { guestKey, money, isWishlisted, toggleWishlist, zone, config, country, currency } =
     useStore();
   const result = useQuery(api.catalog.getProductBySlug, { slug });
   const recordView = useMutation(api.catalog.recordProductView);
@@ -53,6 +54,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
+  const adding = useRef(false);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewTitle, setReviewTitle] = useState("");
   const [reviewBody, setReviewBody] = useState("");
@@ -137,18 +139,24 @@ function ProductDetailContent({ slug }: { slug: string }) {
   const wished = isWishlisted(String(product._id));
 
   const handleAdd = async () => {
+    if (adding.current || !guestKey) return;
+    adding.current = true;
     setIsAdding(true);
     try {
-      await addToCart({
-        guestKey: guestKey || undefined,
+      const result = await addToCart({
+        guestKey,
+        currency,
         productId: product._id as Id<"products">,
         variantSku,
         quantity,
       });
-      toast.success(`${product.name} added to your cart.`);
+      toast.success(`${product.name} added to your cart.`, {
+        description: result.capped ? "Quantity was limited to available stock or the per-item limit." : undefined,
+      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add to cart.");
+      toast.error(cartErrorMessage(error, "Could not add to cart. Please try again."));
     } finally {
+      adding.current = false;
       setIsAdding(false);
     }
   };
@@ -334,7 +342,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
               <Button
                 size="lg"
                 className="flex-1 gap-2"
-                disabled={!inStock || isAdding || !shipsHere}
+                disabled={!inStock || isAdding || !guestKey || !shipsHere}
                 onClick={() => void handleAdd()}
               >
                 {isAdding ? (

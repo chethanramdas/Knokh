@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
-  Loader2,
   ShoppingBag,
   Tag,
   Trash2,
@@ -25,9 +24,10 @@ import { Input } from "@/components/ui/input";
 import { BRAND } from "@/lib/brand";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
+import { cartErrorMessage } from "@/lib/cartErrors";
 
 export default function Cart() {
-  const { guestKey, currency, country, config, moneyLocal, cartCount } = useStore();
+  const { guestKey, currency, country, config, moneyLocal } = useStore();
   const cart = useQuery(api.cart.getCart, {
     guestKey: guestKey || undefined,
     currency,
@@ -48,9 +48,18 @@ export default function Cart() {
     try {
       await updateItem({ guestKey: guestKey || undefined, cartItemId, quantity });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not update the quantity.");
+      toast.error(cartErrorMessage(error, "Could not update the quantity. Please try again."));
     } finally {
       setBusyLine(null);
+    }
+  };
+
+  const performCartAction = async (action: () => Promise<unknown>, message?: string) => {
+    try {
+      await action();
+      if (message) toast.success(message);
+    } catch (error) {
+      toast.error(cartErrorMessage(error));
     }
   };
 
@@ -95,7 +104,7 @@ export default function Cart() {
         title="Your cart"
         subtitle={`${cart.itemCount} item${cart.itemCount === 1 ? "" : "s"} · prices shown in ${cart.currency}`}
         action={
-          <Button variant="ghost" size="sm" onClick={() => void clearCart({ guestKey })}>
+          <Button variant="ghost" size="sm" onClick={() => void performCartAction(() => clearCart({ guestKey }), "Your cart is now empty.")}>
             <Trash2 className="size-3.5" /> Empty cart
           </Button>
         }
@@ -158,10 +167,10 @@ export default function Cart() {
                     variant="ghost"
                     size="sm"
                     className="text-muted-foreground"
-                    onClick={async () => {
-                      await removeItem({ guestKey, cartItemId: line.cartItemId as Id<"cart_items"> });
-                      toast.success("Item removed from your cart.");
-                    }}
+                    onClick={() => void performCartAction(
+                      () => removeItem({ guestKey, cartItemId: line.cartItemId as Id<"cart_items"> }),
+                      "Item removed from your cart.",
+                    )}
                   >
                     Remove
                   </Button>
@@ -184,7 +193,7 @@ export default function Cart() {
                   await saveForLater({ guestKey });
                   toast.success("Cart saved. You can restore it from Saved carts.");
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Could not save the cart.");
+                  toast.error(cartErrorMessage(error, "Could not save the cart. Please try again."));
                 }
               }}
             >
@@ -243,7 +252,7 @@ export default function Cart() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => void applyCoupon({ guestKey, code: "" })}
+                    onClick={() => void performCartAction(() => applyCoupon({ guestKey, code: "" }))}
                   >
                     Remove
                   </Button>
@@ -257,7 +266,7 @@ export default function Cart() {
                       await applyCoupon({ guestKey, code: couponInput });
                       setCouponInput("");
                     } catch (error) {
-                      toast.error(error instanceof Error ? error.message : "Could not apply the coupon.");
+                      toast.error(cartErrorMessage(error, "Could not apply the coupon. Please try again."));
                     }
                   }}
                 >
