@@ -37,6 +37,7 @@ export default function TrackOrder() {
     description:
       "Look up a KNOKH order with your order number and the email address used at checkout.",
     path: "/track-order",
+    noIndex: true,
     siteUrl: config?.seo.siteUrl,
   });
 
@@ -113,9 +114,7 @@ export default function TrackOrder() {
                 </div>
               </div>
               <Button asChild className="mt-4">
-                <Link to={`/order/${result.orderId}?email=${encodeURIComponent(email)}`}>
-                  Open full order details
-                </Link>
+                <Link to="/info/contact">Contact support</Link>
               </Button>
             </div>
           )}

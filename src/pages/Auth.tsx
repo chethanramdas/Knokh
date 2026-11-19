@@ -1,3 +1,6 @@
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { safeReturnTo } from "@/lib/authRedirect";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,21 +27,12 @@ interface AuthProps {
   redirectAfterAuth?: string;
 }
 
-function resolveRedirectAfterAuth(
-  returnTo: string | null,
-  fallback = "/dashboard",
-) {
-  if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
-    return returnTo;
-  }
-  return fallback;
-}
-
 function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirect = resolveRedirectAfterAuth(
+  const methods = useQuery(api.users.signInMethods);
+  const redirect = safeReturnTo(
     searchParams.get("returnTo"),
     redirectAfterAuth,
   );
@@ -49,7 +43,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate(redirect);
+      navigate(redirect, { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate, redirect]);
   const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -61,13 +55,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       await signIn("email-otp", formData);
       setStep({ email: formData.get("email") as string });
       setIsLoading(false);
-    } catch (error) {
-      console.error("Email sign-in error:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to send verification code. Please try again.",
-      );
+    } catch {
+      setError("Failed to send verification code. Please try again.");
       setIsLoading(false);
     }
   };
@@ -80,12 +69,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       const formData = new FormData(event.currentTarget);
       await signIn("email-otp", formData);
 
-      console.log("signed in");
-
-      navigate(redirect);
-    } catch (error) {
-      console.error("OTP verification error:", error);
-
+      navigate(redirect, { replace: true });
+    } catch {
       setError("The verification code you entered is incorrect.");
       setIsLoading(false);
 
@@ -97,14 +82,21 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     setIsLoading(true);
     setError(null);
     try {
-      console.log("Attempting anonymous sign in...");
       await signIn("anonymous");
-      console.log("Anonymous sign in successful");
-      navigate(redirect);
-    } catch (error) {
-      console.error("Guest login error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
-      setError(`Failed to sign in as guest: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      navigate(redirect, { replace: true });
+    } catch {
+      setError("Guest sign-in failed. Please try again.");
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await signIn("google", { redirectTo: redirect });
+    } catch {
+      setError("Google sign-in could not be started. You can try signing in with email.");
       setIsLoading(false);
     }
   };
@@ -135,6 +127,13 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   Enter your email to log in or sign up
                 </CardDescription>
               </CardHeader>
+              {methods?.google ? (
+                <CardContent>
+                  <Button type="button" variant="outline" className="w-full" disabled={isLoading} onClick={handleGoogleSignIn}>
+                    Sign in with Google
+                  </Button>
+                </CardContent>
+              ) : null}
               <form onSubmit={handleEmailSubmit}>
                 <CardContent>
                   

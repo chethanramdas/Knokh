@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import { CheckCircle2, Clock, PackageCheck, Truck } from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useParams } from "react-router";
+import { guestOrderToken } from "@/lib/guestOrder";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -11,18 +12,16 @@ import {
   StatusPill,
 } from "@/components/knokh/ui";
 import { Button } from "@/components/ui/button";
-import { formatDateTime, titleCase } from "@/lib/format";
+import { formatDateTime, formatDeliveryRange, titleCase } from "@/lib/format";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
 
 export default function OrderConfirmation() {
   const { orderId = "" } = useParams();
-  const [searchParams] = useSearchParams();
-  const email = searchParams.get("email") ?? undefined;
   const { config, moneyLocal } = useStore();
   const detail = useQuery(
     api.orders.getOrderDetail,
-    orderId ? { orderId: orderId as Id<"orders">, email } : "skip",
+    orderId ? { orderId: orderId as Id<"orders">, guestToken: guestOrderToken(orderId) } : "skip",
   );
 
   usePageMeta({
@@ -105,7 +104,8 @@ export default function OrderConfirmation() {
               <Truck className="size-4 text-primary" /> Delivery
             </p>
             <p className="mt-1 text-muted-foreground">
-              {order.shippingMethod.label} · about {order.shippingMethod.etaDays} days
+              {order.shippingMethod.label}
+              {order.deliveryRange ? ` · estimated ${formatDeliveryRange(order.deliveryRange)}` : ""}
             </p>
             <p className="mt-1 text-muted-foreground">
               {order.shippingAddress.city}, {order.shippingAddress.state}{" "}

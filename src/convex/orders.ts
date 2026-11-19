@@ -4,10 +4,10 @@ import { mutation, query, type QueryCtx } from "./_generated/server";
 import {
   getUser,
   notifyAdmins,
-  notifyUser,
   requireUser,
   writeAuditLog,
 } from "./lib/auth";
+import { canAccessOrder } from "./lib/orderAccess";
 import { isEmailish, money0 } from "./lib/util";
 
 const ORDER_STATUSES = [
@@ -20,47 +20,21 @@ const ORDER_STATUSES = [
   "returned",
 ] as const;
 
-/**
- * Order detail access rules (enforced here, on the server):
- *  - the signed-in owner,
- *  - an administrator,
- *  - or a guest who supplies the exact email address used on the order.
- */
 async function loadOrderForViewer(
   ctx: QueryCtx,
-  args: { orderId: Id<"orders">; email?: string },
+  args: { orderId: Id<"orders">; guestToken?: string },
 ): Promise<Doc<"orders"> | null> {
   const order = await ctx.db.get(args.orderId);
-  if (!order) return null;
-  const user = await getUser(ctx);
-  if (user?.role === "admin") return order;
-  if (order.userId && user?._id === order.userId) return order;
-  if (!order.userId) {
-    const provided = args.email?.trim().toLowerCase();
-    const expected = (order.shippingAddress.email ?? order.guestEmail ?? "").toLowerCase();
-    if (provided && expected && provided === expected) return order;
-  }
-  return null;
+  return order && canAccessOrder(order, await getUser(ctx), args.guestToken) ? order : null;
 }
 
 export const getOrderForCheckout = query({
-  args: { orderId: v.id("orders") },
-  handler: async (ctx, args) => {
-    const user = await getUser(ctx);
-    const order = await ctx.db.get(args.orderId);
-    if (!order) return null;
-    if (user?.role === "admin") return order;
-    if (order.userId && user?._id === order.userId) return order;
-    // A guest order must be confirmed by the client that just created it: the
-    // order id itself is unguessable, but we still require the checkout page to
-    // know the id. No other customer can reach another customer's order.
-    if (!order.userId) return order;
-    return null;
-  },
+  args: { orderId: v.id("orders"), guestToken: v.optional(v.string()) },
+  handler: loadOrderForViewer,
 });
 
 export const getOrderDetail = query({
-  args: { orderId: v.id("orders"), email: v.optional(v.string()) },
+  args: { orderId: v.id("orders"), guestToken: v.optional(v.string()), email: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const order = await loadOrderForViewer(ctx, args);
     if (!order) return null;

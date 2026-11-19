@@ -134,12 +134,13 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL || "https://agreeable-caterpillar-156.convex.cloud";
-const convex = new ConvexReactClient(convexUrl);
+const convexUrl = import.meta.env.VITE_CONVEX_URL;
+const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 
 function RouteSyncer() {
   const location = useLocation();
   useEffect(() => {
+    if (!import.meta.env.DEV || window.parent === window) return;
     window.parent.postMessage(
       { type: "iframe-route-change", path: location.pathname },
       "*",
@@ -147,7 +148,9 @@ function RouteSyncer() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!import.meta.env.DEV || window.parent === window) return;
     function handleMessage(event: MessageEvent) {
+      if (event.source !== window.parent) return;
       if (event.data?.type === "navigate") {
         if (event.data.direction === "back") window.history.back();
         if (event.data.direction === "forward") window.history.forward();
@@ -160,7 +163,12 @@ function RouteSyncer() {
   return null;
 }
 
-createRoot(document.getElementById("root")!).render(
+createRoot(document.getElementById("root")!).render(!convex ? (
+  <main className="mx-auto max-w-lg p-8">
+    <h1 className="text-xl font-semibold">Storefront configuration is incomplete</h1>
+    <p className="mt-2">Set the Convex URL for this environment to open the storefront.</p>
+  </main>
+) : (
   <StrictMode>
     <RootErrorBoundary>
       <ConvexAuthProvider client={convex}>
@@ -259,5 +267,5 @@ createRoot(document.getElementById("root")!).render(
         <Toaster />
       </ConvexAuthProvider>
     </RootErrorBoundary>
-  </StrictMode>,
-);
+  </StrictMode>
+));

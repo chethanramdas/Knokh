@@ -1,3 +1,4 @@
+import { CUSTOMER_SUPPORT_EMAIL, GENERAL_ENQUIRIES_EMAIL } from "@/lib/storePolicy";
 import { useMutation, useQuery } from "convex/react";
 import {
   Heart,
@@ -501,8 +502,7 @@ function Footer() {
           <div>
             <LogoLink showTagline />
             <p className="mt-4 max-w-sm text-sm text-muted-foreground">
-              {brand.tagline} A multi-category marketplace with delivery in India and
-              internationally.
+              {brand.tagline} A multi-category marketplace with delivery in India.
             </p>
             <div className="mt-5">
               <p className="text-sm font-semibold">New arrivals and offers</p>
@@ -511,16 +511,8 @@ function Footer() {
               </div>
             </div>
             <div className="mt-5 space-y-1 text-sm text-muted-foreground">
-              {contact.supportEmail ? (
-                <p>
-                  Support:{" "}
-                  <a className="hover:text-foreground" href={`mailto:${contact.supportEmail}`}>
-                    {contact.supportEmail}
-                  </a>
-                </p>
-              ) : (
-                <p>Support email is not configured yet.</p>
-              )}
+              <p>Customer support <a className="hover:text-foreground" href={`mailto:${CUSTOMER_SUPPORT_EMAIL}`}>{CUSTOMER_SUPPORT_EMAIL}</a></p>
+              <p>General enquiries <a className="hover:text-foreground" href={`mailto:${GENERAL_ENQUIRIES_EMAIL}`}>{GENERAL_ENQUIRIES_EMAIL}</a></p>
               {contact.phone ? <p>Phone: {contact.phone}</p> : null}
               {contact.hours ? <p>{contact.hours}</p> : null}
             </div>

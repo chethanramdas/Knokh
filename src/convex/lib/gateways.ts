@@ -6,7 +6,7 @@
  *    sent in `X-Razorpay-Signature`. Duplicate events are identified with the
  *    `x-razorpay-event-id` header.
  *    https://razorpay.com/docs/webhooks/validate-test
- *  - Cashfree: `base64(HMAC-SHA256(<x-webhook-timestamp>.<raw body>, client
+ *  - Cashfree: `base64(HMAC-SHA256(<x-webhook-timestamp><raw body>, client
  *    secret))`, sent in `x-webhook-signature`.
  *    https://www.cashfree.com/docs/api-reference/payments/latest/webhooks/signature-verification
  *  - PayPal: order id + capture verification against the PayPal API (no HMAC
@@ -16,7 +16,7 @@
  * Nothing here stores card data, and no secret is ever returned to a client.
  */
 
-import { hmacBase64, hmacHex, safeEqual } from "./hmac";
+import { hmacBase64, hmacHex, hmacSha256, safeEqual, toHex, utf8Bytes } from "./hmac";
 
 export type ProviderId = "razorpay" | "cashfree" | "paypal" | "test_gateway";
 
@@ -31,6 +31,7 @@ export type NormalizedWebhook = {
   status: "captured" | "authorized" | "failed" | "refunded" | "ignored";
   feeMinor?: number;
   refundId?: string;
+  internalRefundId?: string;
 };
 
 export type SignatureCheck = { valid: boolean; reason?: string };
@@ -47,13 +48,13 @@ export function providerConfigured(envVars: string[]): boolean {
 /* -------------------------------- Razorpay -------------------------------- */
 
 export function verifyRazorpaySignature(
-  rawBody: string,
+  rawBody: string | Uint8Array,
   signature: string | undefined,
   secret: string | undefined,
 ): SignatureCheck {
   if (!secret) return { valid: false, reason: "RAZORPAY_WEBHOOK_SECRET is not configured." };
   if (!signature) return { valid: false, reason: "Missing X-Razorpay-Signature header." };
-  const expected = hmacHex(secret, rawBody);
+  const expected = toHex(hmacSha256(utf8Bytes(secret), typeof rawBody === "string" ? utf8Bytes(rawBody) : rawBody));
   return safeEqual(expected, signature.trim())
     ? { valid: true }
     : { valid: false, reason: "Webhook signature mismatch." };
@@ -80,7 +81,14 @@ export function verifyRazorpayPaymentSignature(args: {
 }
 
 export function parseRazorpayWebhook(
-  payload: any,
+  payload: {
+    event?: string;
+    created_at?: number;
+    payload?: {
+      payment?: { entity?: { id?: string; order_id?: string; status?: string; captured?: boolean; amount?: number; currency?: string; method?: string; fee?: number } };
+      refund?: { entity?: { id?: string; payment_id?: string; status?: string; amount?: number; currency?: string; notes?: { knokhRefundId?: string }; } };
+    };
+  },
   headers: Record<string, string>,
 ): NormalizedWebhook {
   const event = String(payload?.event ?? "unknown");
@@ -88,26 +96,27 @@ export function parseRazorpayWebhook(
   const refund = payload?.payload?.refund?.entity;
   const eventId =
     headers["x-razorpay-event-id"] ??
-    `${event}:${payment?.id ?? refund?.id ?? payload?.created_at ?? Date.now()}`;
-  const status: NormalizedWebhook["status"] = event.startsWith("payment.captured")
+    `${event}:${refund?.id ?? payment?.id ?? payload?.created_at ?? "unknown"}`;
+  const status: NormalizedWebhook["status"] = event === "payment.captured" && payment?.status === "captured" && payment?.captured === true
     ? "captured"
-    : event.startsWith("payment.authorized")
+    : event === "payment.authorized"
       ? "authorized"
-      : event.startsWith("payment.failed")
+      : event === "payment.failed"
         ? "failed"
-        : event.startsWith("refund")
+        : event === "refund.processed" && refund?.status === "processed"
           ? "refunded"
           : "ignored";
   return {
     eventId,
     eventType: event,
-    providerOrderId: payment?.order_id ?? refund?.payment_id,
-    providerPaymentId: payment?.id,
-    amountMinor: payment?.amount ?? refund?.amount,
-    currency: payment?.currency,
+    providerOrderId: payment?.order_id,
+    providerPaymentId: refund?.payment_id ?? payment?.id,
+    amountMinor: refund?.amount ?? payment?.amount,
+    currency: refund?.currency ?? payment?.currency,
     method: payment?.method,
     feeMinor: payment?.fee,
     refundId: refund?.id,
+    internalRefundId: refund?.notes?.knokhRefundId,
     status,
   };
 }
@@ -124,13 +133,21 @@ export function verifyCashfreeSignature(
   if (!signature || !timestamp) {
     return { valid: false, reason: "Missing x-webhook-signature or x-webhook-timestamp." };
   }
-  const expected = hmacBase64(secret, `${timestamp}.${rawBody}`);
+  const expected = hmacBase64(secret, `${timestamp}${rawBody}`);
   return safeEqual(expected, signature.trim())
     ? { valid: true }
     : { valid: false, reason: "Webhook signature mismatch." };
 }
 
-export function parseCashfreeWebhook(payload: any): NormalizedWebhook {
+export function parseCashfreeWebhook(payload: {
+  type?: string;
+  event_time?: string;
+  data?: {
+    order?: { order_id?: string };
+    payment?: { cf_payment_id?: string | number; payment_amount?: string | number; payment_currency?: string; payment_group?: string; payment_time?: string };
+    refund?: { cf_refund_id?: string | number };
+  };
+}): NormalizedWebhook {
   const type = String(payload?.type ?? "unknown");
   const data = payload?.data ?? {};
   const status: NormalizedWebhook["status"] =
@@ -195,7 +212,10 @@ export function verifyTestGatewaySignature(
     : { valid: false, reason: "Webhook signature mismatch." };
 }
 
-export function parseTestGatewayWebhook(payload: any): NormalizedWebhook {
+export function parseTestGatewayWebhook(payload: {
+  status?: string; eventId?: string; eventType?: string; orderId?: string; paymentId?: string;
+  amountMinor?: number; currency?: string; method?: string;
+}): NormalizedWebhook {
   const status: NormalizedWebhook["status"] =
     payload?.status === "captured"
       ? "captured"

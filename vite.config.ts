@@ -1,10 +1,27 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
-// https://vite.dev/config/
-export default defineConfig({
+const productionConvex = "https://agreeable-caterpillar-156.convex.cloud";
+const stagingConvex = "https://tame-lemur-590.convex.cloud";
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd());
+  const pagesBranch = process.env.CF_PAGES_BRANCH;
+  const isPreview = process.env.CF_PAGES === "1" && pagesBranch !== "main";
+  const convexUrl = isPreview
+    ? pagesBranch === "feat/knokh-hardening"
+      ? stagingConvex
+      : env.VITE_CONVEX_URL || ""
+    : env.VITE_CONVEX_URL || (pagesBranch === "main" ? productionConvex : "");
+
+  if (isPreview && convexUrl && new URL(convexUrl).hostname.toLowerCase() === new URL(productionConvex).hostname) {
+    throw new Error("Cloudflare previews require an isolated Convex deployment.");
+  }
+
+  return {
+  define: { "import.meta.env.VITE_CONVEX_URL": JSON.stringify(convexUrl) },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -93,4 +110,5 @@ export default defineConfig({
       overlay: false,
     },
   },
+  };
 });
