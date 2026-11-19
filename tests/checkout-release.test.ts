@@ -228,6 +228,140 @@ describe("isolated checkout and signed payment lifecycle", () => {
     ).toBeNull();
   });
 
+  test("shows customers their order without staff-only supplier or payment references", async () => {
+    const { t, input } = await fixture();
+    const { orderId, guestToken } = await t.mutation(
+      api.checkout.placeOrder,
+      input,
+    );
+    const adminId = await t.run(async (ctx) => {
+      const now = Date.now();
+      const supplierId = await ctx.db.insert("suppliers", {
+        name: "Staff supplier",
+        slug: "staff-supplier",
+        country: "IN",
+        currency: "INR",
+        apiStatus: "not_configured",
+        connector: "manual",
+        supportsOrderApi: false,
+        supportsStockSync: false,
+        supportsPriceSync: false,
+        supportsProductApi: false,
+        importMethods: [],
+        createdAt: now,
+      });
+      const item = (await ctx.db.query("order_items").first())!;
+      await ctx.db.patch(item._id, { supplierId, supplierSku: "PRIVATE-SKU" });
+      const supplierOrderId = await ctx.db.insert("supplier_orders", {
+        orderId,
+        supplierId,
+        orderItemIds: [item._id],
+        status: "submitted",
+        idempotencyKey: "fixture",
+        responseSummary: "Staff note",
+        attempts: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("shipments", {
+        orderId,
+        supplierOrderId,
+        carrier: "Fixture carrier",
+        trackingNumber: "FIXTURE",
+        trackingUrl: "javascript:ignored",
+        status: "in_transit",
+        events: [],
+        updatedAt: now,
+      });
+      await ctx.db.insert("refunds", {
+        orderId,
+        amountMinor: 500,
+        currency: "INR",
+        reason: "Staff reason",
+        status: "completed",
+        providerRefundId: "rfnd_fixture",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const payment = (await ctx.db.query("payments").first())!;
+      await ctx.db.patch(payment._id, {
+        providerOrderId: "order_fixture",
+        providerPaymentId: "pay_fixture",
+      });
+      return ctx.db.insert("users", { role: "admin" });
+    });
+    const admin = t.withIdentity({
+      subject: adminId,
+      issuer: "https://qa.invalid",
+    });
+    const customerDetail = await t.query(api.orders.getOrderDetail, {
+      orderId,
+      guestToken,
+    });
+    expect(customerDetail?.order).toMatchObject({
+      orderNumber: expect.any(String),
+      currency: "INR",
+    });
+    expect(customerDetail?.items[0]?.name).toBe("Checkout fixture");
+    expect(customerDetail?.items[0]?.supplierSku).toBeUndefined();
+    expect(customerDetail?.items[0]?.unitCostMinor).toBeUndefined();
+    expect(customerDetail?.fulfilment).toEqual([]);
+    expect(customerDetail?.shipments[0]?.trackingNumber).toBe("FIXTURE");
+    expect(customerDetail?.shipments[0]?.trackingUrl).toBeUndefined();
+    expect(customerDetail?.shipments[0]).not.toHaveProperty("supplierOrderId");
+    expect(customerDetail?.refunds[0]?.amountMinor).toBe(500);
+    expect(customerDetail?.refunds[0]?.providerRefundId).toBeUndefined();
+    const staffDetail = await admin.query(api.orders.getOrderDetail, {
+      orderId,
+    });
+    expect(staffDetail?.items[0]?.supplierSku).toBe("PRIVATE-SKU");
+    expect(staffDetail?.fulfilment[0]?.note).toBe("Staff note");
+    expect(staffDetail?.refunds[0]?.providerRefundId).toBe("rfnd_fixture");
+
+    const customerPayment = await t.query(api.payments.getPaymentForOrder, {
+      orderId,
+      guestToken,
+    });
+    expect(customerPayment?.payments[0]?.status).toBe("created");
+    expect(customerPayment?.payments[0]?.providerPaymentId).toBeUndefined();
+    const staffPayment = await admin.query(api.payments.getPaymentForOrder, {
+      orderId,
+    });
+    expect(staffPayment?.payments[0]?.providerPaymentId).toBe("pay_fixture");
+
+    const customerId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { name: "Fixture customer" });
+      await ctx.db.patch(orderId, { userId });
+      return userId;
+    });
+    const customer = t.withIdentity({
+      subject: customerId,
+      issuer: "https://qa.invalid",
+    });
+    const orders = await customer.query(api.orders.myOrders, {});
+    expect(orders[0]).toMatchObject({ _id: orderId, totalMinor: 55900 });
+    expect(orders[0]).not.toHaveProperty("cartOwnerKey");
+    expect(orders[0]).not.toHaveProperty("shippingAddress");
+    expect(orders[0]).not.toHaveProperty("costTotalMinor");
+    expect(
+      await customer.query(api.orders.getOrderDetail, { orderId }),
+    ).not.toBeNull();
+    expect(
+      await t.query(api.orders.getOrderDetail, { orderId, guestToken }),
+    ).toBeNull();
+    const otherId = await t.run((ctx) =>
+      ctx.db.insert("users", { name: "Another customer" }),
+    );
+    const other = t.withIdentity({
+      subject: otherId,
+      issuer: "https://qa.invalid",
+    });
+    expect(
+      await other.query(api.orders.getOrderDetail, { orderId, guestToken }),
+    ).toBeNull();
+    expect(await other.query(api.orders.myOrders, {})).toEqual([]);
+  });
+
   test("verifies capture amount, deduplicates concurrent events and reconciles partial and full refunds", async () => {
     const { t, input } = await fixture();
     const { orderId, guestToken } = await t.mutation(api.checkout.placeOrder, {

@@ -61,13 +61,21 @@ export default function OrderConfirmation() {
     );
   }
 
-  const { order, items, shipments, fulfilment } = detail;
+  const { order, items, shipments } = detail;
   const moneyLocal = (amount: number) => formatMoney(
     amount, config?.currencies.find((entry) => entry.code === order.currency), order.currency,
   );
   const paid = order.paymentStatus === "paid";
   const codPending = order.paymentStatus === "cod_pending";
-  const awaitingPayment = order.paymentMethod === "online" && !paid;
+  const refunded = order.paymentStatus === "refunded" || order.paymentStatus === "partially_refunded";
+  const cancelled = order.fulfilmentStatus === "cancelled";
+  const awaitingPayment = order.paymentMethod === "online" && !paid && !refunded && !cancelled;
+  let confirmation = "Order received";
+  if (cancelled) confirmation = "Order cancelled";
+  else if (refunded) confirmation = titleCase(order.paymentStatus);
+  else if (paid) confirmation = "Payment confirmed";
+  else if (codPending) confirmation = "Cash on delivery order confirmed";
+  else if (awaitingPayment) confirmation = "Order received, payment pending";
 
   return (
     <Container className="max-w-4xl py-10">
@@ -76,11 +84,7 @@ export default function OrderConfirmation() {
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold text-primary">
               {paid || codPending ? <CheckCircle2 className="size-4" /> : <Clock className="size-4" />}
-              {paid
-                ? "Payment confirmed"
-                : codPending
-                  ? "Cash on delivery order confirmed"
-                  : "Order received — payment pending"}
+              {confirmation}
             </p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight">{order.orderNumber}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -124,14 +128,7 @@ export default function OrderConfirmation() {
               <PackageCheck className="size-4 text-primary" /> Fulfilment
             </p>
             <p className="mt-1 text-muted-foreground">{titleCase(order.fulfilmentStatus)}</p>
-            <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-              {fulfilment.map((entry) => (
-                <li key={String(entry.supplierId)}>
-                  {entry.supplierName}: {titleCase(entry.status)}
-                </li>
-              ))}
-              {fulfilment.length === 0 ? <li>Not yet forwarded</li> : null}
-            </ul>
+
           </div>
           <div className="rounded-lg border border-border p-4 text-sm">
             <p className="font-semibold">Payment</p>

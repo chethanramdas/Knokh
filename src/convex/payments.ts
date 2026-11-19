@@ -14,7 +14,6 @@ import {
   type NormalizedWebhook,
 } from "./lib/gateways";
 import { canViewOrder } from "./lib/checkoutAccess";
-import { getSettings } from "./lib/settings";
 
 export type WebhookOutcome = {
   ok: boolean;
@@ -428,7 +427,6 @@ export const getPaymentForOrder = query({
       .query("payment_events")
       .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
       .take(25) : [];
-    const settings = await getSettings(ctx);
     return {
       payments: payments.map((payment) => ({
         _id: payment._id,
@@ -437,8 +435,8 @@ export const getPaymentForOrder = query({
         amountMinor: payment.amountMinor,
         currency: payment.currency,
         method: payment.method,
-        providerOrderId: payment.providerOrderId,
-        providerPaymentId: payment.providerPaymentId,
+        providerOrderId: user?.role === "admin" ? payment.providerOrderId : undefined,
+        providerPaymentId: user?.role === "admin" ? payment.providerPaymentId : undefined,
         signatureVerified: payment.signatureVerified,
         createdAt: payment.createdAt,
         updatedAt: payment.updatedAt,
@@ -452,7 +450,6 @@ export const getPaymentForOrder = query({
         processingError: event.processingError,
         receivedAt: event.receivedAt,
       })),
-      testGatewayEnabled: settings.payments.testGatewayEnabled,
     };
   },
 });

@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import {
   getUser,
@@ -18,6 +19,31 @@ const ORDER_STATUSES = [
   "cancelled",
   "returned",
 ] as const;
+
+function customerShipment(shipment: Doc<"shipments">) {
+  let trackingUrl: string | undefined;
+  if (shipment.trackingUrl) {
+    try {
+      const url = new URL(shipment.trackingUrl);
+      if (url.protocol === "https:" && !url.username && !url.password) {
+        trackingUrl = url.href;
+      }
+    } catch {
+      // Invalid legacy links remain in staff records.
+    }
+  }
+  return {
+    _id: shipment._id,
+    carrier: shipment.carrier,
+    trackingNumber: shipment.trackingNumber,
+    trackingUrl,
+    status: shipment.status,
+    events: shipment.events,
+    estimatedDelivery: shipment.estimatedDelivery,
+    shippedAt: shipment.shippedAt,
+    deliveredAt: shipment.deliveredAt,
+  };
+}
 
 export const getOrderForCheckout = query({
   args: { orderId: v.id("orders"), guestToken: v.optional(v.string()) },
@@ -54,26 +80,75 @@ export const getOrderDetail = query({
       .query("return_requests")
       .withIndex("by_order", (q) => q.eq("orderId", order._id))
       .take(10);
-    const supplierOrders = await ctx.db
-      .query("supplier_orders")
-      .withIndex("by_order", (q) => q.eq("orderId", order._id))
-      .take(10);
+    const isAdmin = user?.role === "admin";
+    const supplierOrders = isAdmin
+      ? await ctx.db
+          .query("supplier_orders")
+          .withIndex("by_order", (q) => q.eq("orderId", order._id))
+          .take(10)
+      : [];
     const suppliers = await Promise.all(
       supplierOrders.map((entry) => ctx.db.get(entry.supplierId)),
     );
 
-    const visibleOrder = { ...order };
-    const { cartOwnerKey, checkoutRequestId, costTotalMinor, ...customerOrder } = visibleOrder;
-    void cartOwnerKey;
-    void checkoutRequestId;
+    const customerOrder = {
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      currency: order.currency,
+      subtotalMinor: order.subtotalMinor,
+      discountMinor: order.discountMinor,
+      shippingMinor: order.shippingMinor,
+      taxMinor: order.taxMinor,
+      dutyMinor: order.dutyMinor,
+      totalMinor: order.totalMinor,
+      couponCode: order.couponCode,
+      shippingAddress: order.shippingAddress,
+      shippingMethod: order.shippingMethod,
+      paymentMethod: order.paymentMethod,
+      provider: order.provider,
+      paymentStatus: order.paymentStatus,
+      fulfilmentStatus: order.fulfilmentStatus,
+      placedAt: order.placedAt,
+    };
     return {
-      order: { ...customerOrder, costTotalMinor: user?.role === "admin" ? costTotalMinor : undefined },
-      items: items.map(({ unitCostMinor, ...item }) => ({
-        ...item, unitCostMinor: user?.role === "admin" ? unitCostMinor : undefined,
+      order: {
+        ...customerOrder,
+        customerName: isAdmin ? order.customerName : undefined,
+        guestEmail: isAdmin ? order.guestEmail : undefined,
+        notes: isAdmin ? order.notes : undefined,
+        baseCurrency: isAdmin ? order.baseCurrency : order.currency,
+        costTotalMinor: isAdmin ? order.costTotalMinor : undefined,
+      },
+      items: items.map((item) => ({
+        _id: item._id,
+        productId: item.productId,
+        name: item.name,
+        sku: item.sku,
+        variantSku: item.variantSku,
+        variantName: item.variantName,
+        image: item.image,
+        unitPriceMinor: item.unitPriceMinor,
+        quantity: item.quantity,
+        lineTotalMinor: item.lineTotalMinor,
+        fulfilmentStatus: item.fulfilmentStatus,
+        supplierSku: isAdmin ? item.supplierSku : undefined,
+        unitCostMinor: isAdmin ? item.unitCostMinor : undefined,
       })),
-      shipments,
-      refunds,
-      returnRequests,
+      shipments: isAdmin ? shipments : shipments.map(customerShipment),
+      refunds: refunds.map((refund) => ({
+        _id: refund._id,
+        amountMinor: refund.amountMinor,
+        currency: refund.currency,
+        reason: isAdmin ? refund.reason : undefined,
+        status: refund.status,
+        providerRefundId: isAdmin ? refund.providerRefundId : undefined,
+      })),
+      returnRequests: returnRequests.map((request) => ({
+        _id: request._id,
+        type: request.type,
+        reason: request.reason,
+        status: request.status,
+      })),
       fulfilment: supplierOrders.map((entry, index) => ({
         supplierId: entry.supplierId,
         supplierName: suppliers[index]?.name ?? "Unknown supplier",
@@ -107,7 +182,17 @@ export const myOrders = query({
           ? order.orderNumber.toLowerCase().includes(search) ||
             order.customerName.toLowerCase().includes(search)
           : true,
-      );
+      )
+      .map((order) => ({
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        placedAt: order.placedAt,
+        shippingMethod: { label: order.shippingMethod.label },
+        fulfilmentStatus: order.fulfilmentStatus,
+        paymentStatus: order.paymentStatus,
+        currency: order.currency,
+        totalMinor: order.totalMinor,
+      }));
   },
 });
 
@@ -125,7 +210,6 @@ export const lookupGuestOrder = query({
       return null;
     }
     return {
-      orderId: order._id,
       orderNumber: order.orderNumber,
       fulfilmentStatus: order.fulfilmentStatus,
       paymentStatus: order.paymentStatus,
@@ -332,7 +416,7 @@ export const getTracking = query({
       shippingAddress: order.shippingAddress,
       placedAt: order.placedAt,
       estimatedDelivery: order.placedAt + order.shippingMethod.etaDays * 86400000,
-      shipments,
+      shipments: user?.role === "admin" ? shipments : shipments.map(customerShipment),
       items: items.map((item) => ({
         name: item.name,
         quantity: item.quantity,

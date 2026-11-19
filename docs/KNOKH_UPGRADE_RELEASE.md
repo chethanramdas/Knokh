@@ -135,14 +135,14 @@ PASS denotes verified source or local behavior. BLOCKED denotes a missing integr
 | 45 | NEEDS OWNER APPROVAL | Reviewed Free plan and ruleset state. Configure/test approved WAF and verify DDoS coverage for the storefront and direct backend. |
 | 46 | BLOCKED | Convex Auth session settings preserved and OAuth library used. Validate token lifetime, state, PKCE, refresh/logout and cookie behavior in preview. |
 | 47 | BLOCKED | Existing backend customer/admin permissions enforced. Separate staff entitlement and operations UI need an approved access matrix. |
-| 48 | BLOCKED | Audited high-risk checkout, authentication, payment, orders, catalog and supplier entry points. Complete a signature-level inventory and test every exposed function. |
-| 49 | BLOCKED | New guest and order/payment ownership tests pass. Complete end-to-end access regression for profiles, addresses, carts and legacy guest records. |
+| 48 | BLOCKED | Audited high-risk checkout, authentication, payment, orders, catalog and supplier entry points. The follow-up tightened customer projections and removed legacy non-HTTPS tracking links. Complete a signature-level inventory and test every exposed function. |
+| 49 | BLOCKED | Guest, signed-in order owner, unrelated account, and admin order/payment boundaries pass local regression tests. Complete end-to-end access regression for profiles, addresses, carts and legacy guest records. |
 | 50 | BLOCKED | HSTS, frame, MIME and referrer headers added. CSP is report-only pending provider/mobile browser validation and documented exceptions. |
 | 51 | BLOCKED | Existing OTP verification throttling and new checkout owner cap. Bot mitigation and OTP delivery abuse limits remain. |
 | 52 | BLOCKED | Existing import size and bounded fetch checks identified. Full file-content, object access and untrusted-input review remains. |
 | 53 | BLOCKED | Tightened ignore rules and dependency/patch checks. Historical tracked environment filenames contained only public variable names in this review. Run a dedicated full-history secret scan and rotate only confirmed exposures with authorization. |
 | 54 | BLOCKED | Reduced client error detail and redacted payment event writes. Monitoring, alert routing and diagnostics drill remain. |
-| 55 | BLOCKED | Workflow source and local checks exist. Confirm GitHub accepted the workflow and its checks run on the draft PR. |
+| 55 | PASS | The [initial PR workflow](https://github.com/chethanramdas/Knokh/actions/runs/44571844060) passed TypeScript, build, tests, contrast, lint, audit and patch secret-pattern checks. The dedicated full-history review remains tracked under 53. |
 | 56 | BLOCKED | Backup/restore/rollback procedure documented. Verify current backup quota and an isolated restore. |
 | 57 | BLOCKED | Local regression tests cover major checkout and capture/refund paths. Manual security and browser QA and independent professional penetration testing remain appropriate before live payments. |
 | 58 | NEEDS OWNER APPROVAL | Checked branch/project configuration. Review admin access, branch protection, deployment credentials and release roles with owner and apply approved changes. |
@@ -153,12 +153,14 @@ PASS denotes verified source or local behavior. BLOCKED denotes a missing integr
 | --- | --- | --- |
 | Dependency install | PASS | Clean `npm ci` with the existing package-lock and Node 24. |
 | TypeScript and build | PASS | Offline generated Convex API/schema types, `tsc -b`, and production Vite output. The build reports upstream Rollup annotation and empty-chunk warnings. |
-| Unit and integration | PASS | 86 tests in 6 suites via Vitest. Covers OTP compatibility and Google OAuth startup, Indian delivery calendar, checkout ownership and concurrent retries, signed webhook parsing/replay, stale state, refund totals and admin capture override. |
+| Unit and integration | PASS | 87 tests in 6 suites via Vitest. Includes customer versus staff order and payment projections and cross-account access. Covers OTP compatibility and Google OAuth startup, Indian delivery calendar, checkout ownership and concurrent retries, signed webhook parsing/replay, stale state, refund totals and admin capture override. |
 | Lint | PASS | Repository-wide ESLint ran with zero errors and 13 warnings. No lint or security rules were disabled. |
 | Dependency audit | PASS | npm reported zero known findings after upgrading the affected development dependency chain. |
-| Preview isolation | PASS | Simulated Pages preview builds were rejected with no backend URL and with the known production URL. Cloudflare branch preview needs an authorized isolated Convex deployment. |
+| Preview isolation | PASS | Simulated Pages preview builds were rejected with no backend URL and with the known production URL. Cloudflare branch preview still lacks an authorized isolated Convex URL. |
 | SEO endpoints | PASS locally | Direct Pages handler checks covered storefront robots, preview no indexing and XML proxying with a fixture upstream. Live baseline HTTPS requests returned HTML for both routes before this change. Search Console and Cloudflare serving checks are pending. |
 | Homepage contrast | PASS | Existing script passed its five checks, including a 4.53:1 minimum muted foreground contrast. |
 | Browser and mobile | BLOCKED | Local Chromium could not start due to host socket restrictions. Device, keyboard, real-world mobile and browser CSP tests remain. |
 | Provider-approved sandbox | BLOCKED | No Razorpay live or test transaction, actual provider OAuth consent/callback or gateway refund was attempted. Signed event tests use local fixtures. |
 | Convex deployment | BLOCKED | Local Convex CLI attempt terminated before a deployment was created. Cloud staging credentials and data separation are still needed. |
+
+The follow-up launched a loopback-only Convex process successfully. Deploying the application into it failed because the execution environment denied the Convex Node executor Unix socket. Chromium also could not render under the available runner restrictions. Neither attempt accessed production data or provider credentials.
