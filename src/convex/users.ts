@@ -1,3 +1,4 @@
+import { hasGoogleCredentials } from "./auth/google";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { query } from "./_generated/server";
 
@@ -13,4 +14,9 @@ export const currentUser = query({
     if (userId === null) return null;
     return await ctx.db.get(userId);
   },
+});
+
+export const signInMethods = query({
+  args: {},
+  handler: () => ({ google: hasGoogleCredentials() }),
 });

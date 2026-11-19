@@ -37,10 +37,8 @@ export const emailOtp = Email({
     });
 
     if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(
-        `Could not send the sign-in code (Resend HTTP ${response.status}): ${detail.slice(0, 300)}`,
-      );
+      console.warn("Sign-in email delivery failed", { status: response.status });
+      throw new Error("Could not send the sign-in code. Please try again.");
     }
   },
 });
