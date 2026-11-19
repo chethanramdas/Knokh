@@ -1,3 +1,6 @@
+import { RETURNS_NOTICE } from "@/lib/storePolicy";
+import { DeliveryEstimate } from "@/components/knokh/DeliveryEstimate";
+import { guestOrderToken, rememberGuestOrder } from "@/lib/guestOrder";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
@@ -9,7 +12,7 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -74,7 +77,10 @@ function loadScript(src: string): Promise<void> {
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const { guestKey, currency, country, config, moneyLocal, setCountry } = useStore();
+  const { guestKey, config } = useStore();
+  const currency = "INR";
+  const country = "IN";
+  const moneyLocal = (amountMinor: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(amountMinor / 100);
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const shippingMethodId = searchParams.get("ship") ?? "standard";
@@ -100,7 +106,7 @@ export default function Checkout() {
     state: "",
     postalCode: "",
   });
-  const [paymentChoice, setPaymentChoice] = useState("test_gateway");
+  const [selectedPayment, setPaymentChoice] = useState("");
   const [notes, setNotes] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -108,15 +114,13 @@ export default function Checkout() {
 
   usePageMeta({ title: "Secure checkout", path: "/checkout", noIndex: true, siteUrl: config?.seo.siteUrl });
 
-  useEffect(() => {
-    if (!quote) return;
-    const options = quote.paymentOptions;
-    const firstOnline = options.online.find((provider) => provider.status === "configured");
-    if (firstOnline) setPaymentChoice(firstOnline.id);
-    else if (options.testGateway) setPaymentChoice("test_gateway");
-    else if (options.cod) setPaymentChoice("cod");
-    else setPaymentChoice("");
-  }, [quote?.paymentOptions.online.length, quote?.paymentOptions.testGateway, quote?.paymentOptions.cod]);
+  const options = quote?.paymentOptions;
+  const availablePayments = [
+    ...(options?.online.map((provider) => provider.id) ?? []),
+    ...(options?.testGateway ? [options.testGateway.id] : []),
+    ...(options?.cod ? [options.cod.id] : []),
+  ];
+  const paymentChoice = availablePayments.includes(selectedPayment) ? selectedPayment : (availablePayments[0] ?? "");
 
   if (!guestKey || quote === undefined) {
     return (
@@ -150,10 +154,6 @@ export default function Checkout() {
   const configuredOnline = quote.paymentOptions.online.filter(
     (provider) => provider.status === "configured",
   );
-  const pendingOnline = quote.paymentOptions.online.filter(
-    (provider) => provider.status !== "configured",
-  );
-
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
@@ -187,8 +187,9 @@ export default function Checkout() {
         marketingConsent,
       });
 
+      rememberGuestOrder(result.orderId, result.guestToken);
       if (!result.requiresPayment) {
-        navigate(`/order/${result.orderId}?email=${encodeURIComponent(form.email)}`);
+        navigate(`/order/${result.orderId}`);
         return;
       }
 
@@ -196,7 +197,7 @@ export default function Checkout() {
       // verification step; a redirect alone never marks an order paid.
       const session = await createSession({
         orderId: result.orderId as Id<"orders">,
-        origin: window.location.origin,
+        guestToken: result.guestToken,
       });
 
       if (session.provider === "test_gateway") {
@@ -230,8 +231,9 @@ export default function Checkout() {
                 providerOrderId: response.razorpay_order_id,
                 providerPaymentId: response.razorpay_payment_id,
                 signature: response.razorpay_signature,
+                guestToken: result.guestToken,
               });
-              navigate(`/order/${result.orderId}?email=${encodeURIComponent(form.email)}`);
+              navigate(`/order/${result.orderId}`);
             } catch (verificationError) {
               toast.error(
                 verificationError instanceof Error
@@ -330,20 +332,8 @@ export default function Checkout() {
               </div>
               <div>
                 <Label htmlFor="country">Destination country</Label>
-                <select
-                  id="country"
-                  value={country}
-                  onChange={(event) => setCountry(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm"
-                >
-                  {(config?.shippingZones ?? []).map((entry) => (
-                    <option key={entry.countryCode} value={entry.countryCode}>
-                      {entry.country}
-                      {entry.serviceable ? "" : " — not serviceable"}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <Input id="country" value="India" readOnly />
+</div>
             </div>
           </section>
 
@@ -401,11 +391,12 @@ export default function Checkout() {
                 <Input
                   id="postalCode"
                   required
-                  inputMode={country === "IN" ? "numeric" : "text"}
+                  inputMode="numeric" maxLength={6} pattern="[1-9][0-9]{5}"
                   value={form.postalCode}
                   onChange={(event) => setForm({ ...form, postalCode: event.target.value })}
                 />
-              </div>
+              <DeliveryEstimate pin={form.postalCode} method={selectedShipping?.id} />
+                </div>
             </div>
             {zone && !zone.serviceable ? (
               <InfoNote tone="warning" className="mt-4">
@@ -502,30 +493,6 @@ export default function Checkout() {
                 </button>
               ) : null}
 
-              {pendingOnline.map((provider) => (
-                <div
-                  key={provider.id}
-                  className="flex items-start gap-3 rounded-lg border border-dashed border-border px-4 py-3 text-sm opacity-80"
-                >
-                  <CreditCard className="mt-0.5 size-4 text-muted-foreground" />
-                  <span>
-                    <span className="font-medium">{provider.label}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      Not configured yet. An administrator must set{" "}
-                      {provider.missingEnvVars.join(", ")} on the deployment and enable the
-                      provider in Admin → Settings → Payments.
-                    </span>
-                    <a
-                      href={provider.docsUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 inline-block text-xs text-primary hover:underline"
-                    >
-                      Provider setup documentation
-                    </a>
-                  </span>
-                </div>
-              ))}
 
               {configuredOnline.length === 0 &&
               !quote.paymentOptions.testGateway &&
@@ -642,6 +609,9 @@ export default function Checkout() {
               </InfoNote>
             ) : null}
 
+            <p className="mt-4 text-xs text-muted-foreground">
+              {RETURNS_NOTICE} <Link className="text-primary underline" to="/info/returns-refunds">Read the policy</Link>
+            </p>
             <Button
               type="submit"
               size="lg"
@@ -669,7 +639,7 @@ export function CheckoutReturn() {
   const { config } = useStore();
   const payment = useQuery(
     api.payments.getPaymentForOrder,
-    orderId ? { orderId: orderId as Id<"orders"> } : "skip",
+    orderId ? { orderId: orderId as Id<"orders">, guestToken: guestOrderToken(orderId) } : "skip",
   );
 
   usePageMeta({ title: "Payment status", noIndex: true, path: "/checkout/return", siteUrl: config?.seo.siteUrl });
@@ -707,7 +677,7 @@ export function CheckoutReturn() {
         <p className="mt-2 text-sm text-muted-foreground">
           {paid
             ? "We received a signature-verified confirmation and fulfilment has started."
-            : "We will not mark this order as paid until the gateway confirms it with a verified signature or webhook. This page updates automatically."}
+            : "We will not mark this order as paid until the gateway confirms that it has captured the payment. This page updates automatically."}
         </p>
         {latest ? (
           <p className="mt-4 text-xs text-muted-foreground">
@@ -754,7 +724,7 @@ export function SandboxCheckout() {
 
   const order = useQuery(
     api.orders.getOrderForCheckout,
-    orderId ? { orderId: orderId as Id<"orders"> } : "skip",
+    orderId ? { orderId: orderId as Id<"orders">, guestToken: guestOrderToken(orderId) } : "skip",
   );
 
   usePageMeta({ title: "Sandbox payment", noIndex: true, path: "/checkout/sandbox", siteUrl: config?.seo.siteUrl });
@@ -762,7 +732,7 @@ export function SandboxCheckout() {
   const run = async (outcome: "captured" | "failed") => {
     setBusy(outcome);
     try {
-      const response = await simulate({ orderId: orderId as Id<"orders">, outcome });
+      const response = await simulate({ orderId: orderId as Id<"orders">, guestToken: guestOrderToken(orderId), outcome });
       setResult(
         `Webhook delivered with a valid signature. Result: ${response.status ?? "ignored"}${
           response.duplicate ? " (duplicate ignored — idempotency working)" : ""

@@ -41,9 +41,8 @@ type RefundActionResult = {
   providerRefundId?: string;
   message: string;
 };
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { envValue, signTestGatewayPayload } from "./lib/gateways";
-import { providerRuntimeStatus } from "./lib/settings";
+import { providerAllowed, testGatewayAllowed } from "./lib/paymentMode";
 
 type SessionResult = {
   provider: string;
@@ -72,30 +71,39 @@ function jsonHeaders(extra: Record<string, string> = {}) {
   return { "Content-Type": "application/json", ...extra };
 }
 
-async function readJson(response: Response): Promise<any> {
+type GatewayResponse = {
+  id?: string;
+  amount?: number;
+  currency?: string;
+  payment_id?: string;
+  access_token?: string;
+  payment_session_id?: string;
+  order_id?: string;
+  message?: string;
+  verification_status?: string;
+};
+
+async function readJson(response: Response): Promise<GatewayResponse> {
   const text = await response.text();
   try {
     return text ? JSON.parse(text) : {};
   } catch {
-    return { raw: text.slice(0, 500) };
+    return {};
   }
 }
 
 export const createPaymentSession = action({
   args: {
     orderId: v.id("orders"),
-    origin: v.string(),
+    guestToken: v.optional(v.string()),
+    origin: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<SessionResult> => {
-    const userId = await getAuthUserId(ctx);
     const order: Doc<"orders"> | null = await ctx.runQuery(
       api.orders.getOrderForCheckout,
-      { orderId: args.orderId },
+      { orderId: args.orderId, guestToken: args.guestToken },
     );
     if (!order) throw new Error("Order not found.");
-    if (order.userId && order.userId !== userId) {
-      throw new Error("You cannot pay for this order.");
-    }
     const settings: SiteSettings = await ctx.runQuery(internal.settings.read, {});
     const providerId: string | undefined = order.provider;
     if (!providerId) throw new Error("This order has no online payment method.");
@@ -106,16 +114,24 @@ export const createPaymentSession = action({
     );
     if (!payment) throw new Error("No payment record exists for this order.");
 
-    const siteOrigin =
-      settings.seo.siteUrl && settings.seo.siteUrl.startsWith("http")
-        ? settings.seo.siteUrl.replace(/\/$/, "")
-        : args.origin.replace(/\/$/, "");
-    const returnUrl = `${siteOrigin}/checkout/return?orderId=${args.orderId}`;
+    const provider = settings.payments.providers.find((entry) => entry.id === providerId);
+    if (providerId === "test_gateway" ? !testGatewayAllowed(settings) : !provider || !providerAllowed(provider)) {
+      throw new Error("This payment method is unavailable.");
+    }
+    if (order.currency !== "INR" || !Number.isSafeInteger(order.totalMinor) || order.totalMinor <= 0 ||
+        payment.currency !== order.currency || payment.amountMinor !== order.totalMinor) {
+      throw new Error("The order total is unavailable.");
+    }
+    const existingGatewayOrder: string | null = await ctx.runMutation(internal.payments.reserveGatewaySession, {
+      paymentId: payment._id,
+    });
+    const siteOrigin = process.env.SITE_URL!;
+    const returnUrl = new URL(`/checkout/return?orderId=${args.orderId}`, siteOrigin).href;
 
     let result: SessionResult;
 
     if (providerId === "test_gateway") {
-      if (!settings.payments.testGatewayEnabled) {
+      if (!testGatewayAllowed(settings)) {
         throw new Error("The test gateway is disabled in Admin → Settings → Payments.");
       }
       requireEnv(["TEST_GATEWAY_WEBHOOK_SECRET"]);
@@ -132,37 +148,41 @@ export const createPaymentSession = action({
       };
     } else if (providerId === "razorpay") {
       const env = requireEnv(["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"]);
-      const response = await fetch("https://api.razorpay.com/v1/orders", {
-        method: "POST",
-        headers: jsonHeaders({
-          Authorization:
-            "Basic " + Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64"),
-        }),
-        body: JSON.stringify({
-          amount: order.totalMinor,
-          currency: order.currency,
-          receipt: order.orderNumber,
-          notes: { knokhOrderId: String(order._id) },
-        }),
-      });
-      const payload = await readJson(response);
-      if (!response.ok || !payload.id) {
-        await ctx.runMutation(internal.payments.recordGatewayError, {
-          paymentId: payment._id,
-          message: `Razorpay order creation failed (HTTP ${response.status}): ${JSON.stringify(payload).slice(0, 300)}`,
+      let providerOrderId = existingGatewayOrder;
+      if (!providerOrderId) {
+        const response = await fetch("https://api.razorpay.com/v1/orders", {
+          method: "POST",
+          headers: jsonHeaders({
+            Authorization: "Basic " + Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64"),
+          }),
+          redirect: "error",
+          signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({
+            amount: order.totalMinor,
+            currency: order.currency,
+            receipt: order.orderNumber,
+            notes: { knokhOrderId: String(order._id) },
+          }),
         });
-        throw new Error(
-          `Razorpay rejected the order creation request (HTTP ${response.status}). ${payload?.error?.description ?? ""}`.trim(),
-        );
+        const payload = await readJson(response);
+        if (!response.ok || typeof payload.id !== "string" || !/^order_[A-Za-z0-9]+$/.test(payload.id) ||
+            payload.amount !== order.totalMinor || payload.currency !== order.currency) {
+          await ctx.runMutation(internal.payments.recordGatewayError, {
+            paymentId: payment._id,
+            message: `Razorpay order creation unconfirmed (HTTP ${response.status}). Reconcile by receipt.`,
+          });
+          throw new Error("Payment setup could not be confirmed. Contact support with your order number.");
+        }
+        providerOrderId = payload.id;
       }
       result = {
         provider: "razorpay",
-        providerOrderId: String(payload.id),
+        providerOrderId: providerOrderId!,
         clientPayload: {
           key: env.RAZORPAY_KEY_ID,
-          razorpayOrderId: payload.id,
-          amountMinor: payload.amount,
-          currency: payload.currency,
+          razorpayOrderId: providerOrderId,
+          amountMinor: order.totalMinor,
+          currency: order.currency,
           name: settings.brand.name,
           description: `Order ${order.orderNumber}`,
           website: settings.seo.siteUrl || undefined,
@@ -171,6 +191,7 @@ export const createPaymentSession = action({
           "Load checkout.js and open the Razorpay standard checkout with this payload, then verify the returned signature on our server.",
       };
     } else if (providerId === "cashfree") {
+      if (existingGatewayOrder) throw new Error("Payment setup already exists. Contact support if you cannot resume.");
       const env = requireEnv([
         "CASHFREE_CLIENT_ID",
         "CASHFREE_CLIENT_SECRET",
@@ -185,7 +206,7 @@ export const createPaymentSession = action({
         headers: jsonHeaders({
           "x-client-id": env.CASHFREE_CLIENT_ID,
           "x-client-secret": env.CASHFREE_CLIENT_SECRET,
-          "x-api-version": env.CASHFREE_ENV === "production" ? "2025-01-01" : "2023-08-01",
+          "x-api-version": "2025-01-01",
         }),
         body: JSON.stringify({
           order_id: order.orderNumber,
@@ -200,14 +221,12 @@ export const createPaymentSession = action({
         }),
       });
       const payload = await readJson(response);
-      if (!response.ok || !payload.payment_session_id) {
+      if (!response.ok || !payload.payment_session_id || payload.order_id !== order.orderNumber) {
         await ctx.runMutation(internal.payments.recordGatewayError, {
           paymentId: payment._id,
-          message: `Cashfree order creation failed (HTTP ${response.status}): ${JSON.stringify(payload).slice(0, 300)}`,
+          message: `Cashfree order creation unconfirmed (HTTP ${response.status}).`,
         });
-        throw new Error(
-          `Cashfree rejected the order creation request (HTTP ${response.status}). ${payload?.message ?? ""}`.trim(),
-        );
+        throw new Error("Payment setup could not be confirmed. Contact support with your order number.");
       }
       result = {
         provider: "cashfree",
@@ -220,80 +239,8 @@ export const createPaymentSession = action({
         nextStep:
           "Hand payment_signup_session_id to the Cashfree JS SDK v3 / hosted checkout, then rely on the verified webhook for settlement.",
       };
-    } else if (providerId === "paypal") {
-      const env = requireEnv([
-        "PAYPAL_CLIENT_ID",
-        "PAYPAL_CLIENT_SECRET",
-        "PAYPAL_ENV",
-      ]);
-      const apiBase =
-        env.PAYPAL_ENV === "live"
-          ? "https://api-m.paypal.com"
-          : "https://api-m.sandbox.paypal.com";
-      const tokenResponse = await fetch(`${apiBase}/v1/oauth2/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization:
-            "Basic " +
-            Buffer.from(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`).toString("base64"),
-        },
-        body: "grant_type=client_credentials",
-      });
-      const tokenPayload = await readJson(tokenResponse);
-      if (!tokenResponse.ok || !tokenPayload.access_token) {
-        throw new Error(
-          `PayPal authentication failed (HTTP ${tokenResponse.status}). Check PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET.`,
-        );
-      }
-      const orderResponse = await fetch(`${apiBase}/v2/checkout/orders`, {
-        method: "POST",
-        headers: jsonHeaders({
-          Authorization: `Bearer ${tokenPayload.access_token}`,
-        }),
-        body: JSON.stringify({
-          intent: "CAPTURE",
-          purchase_units: [
-            {
-              custom_id: String(order._id),
-              amount: {
-                currency_code: order.currency,
-                value: (order.totalMinor / 100).toFixed(2),
-              },
-            },
-          ],
-          application_context: {
-            brand_name: settings.brand.name,
-            return_url: returnUrl,
-            cancel_url: `${siteOrigin}/cart`,
-          },
-        }),
-      });
-      const payload = await readJson(orderResponse);
-      if (!orderResponse.ok || !payload.id) {
-        throw new Error(
-          `PayPal order creation failed (HTTP ${orderResponse.status}). ${JSON.stringify(payload).slice(0, 200)}`,
-        );
-      }
-      const approve = (payload.links ?? []).find(
-        (link: { rel: string; href: string }) => link.rel === "approve",
-      );
-      result = {
-        provider: "paypal",
-        providerOrderId: String(payload.id),
-        clientPayload: {
-          paypalOrderId: payload.id,
-          approveUrl: approve?.href,
-        },
-        nextStep:
-          "Redirect the buyer to the PayPal approval URL, then capture on return and confirm through the verified webhook.",
-      };
     } else {
-      const provider = settings.payments.providers.find((entry) => entry.id === providerId);
-      const status = provider ? providerRuntimeStatus(provider.envVars) : "pending_credentials";
-      throw new Error(
-        `The "${providerId}" payment adapter has no implementation in this deployment (status: ${status}). Choose another payment method.`,
-      );
+      throw new Error("This payment method is unavailable.");
     }
 
     await ctx.runMutation(internal.payments.attachGatewaySession, {
@@ -314,18 +261,19 @@ export const createPaymentSession = action({
 export const simulateTestGatewayEvent = action({
   args: {
     orderId: v.id("orders"),
+    guestToken: v.optional(v.string()),
     outcome: v.union(v.literal("captured"), v.literal("failed")),
   },
   handler: async (ctx, args): Promise<WebhookOutcome> => {
     const settings: SiteSettings = await ctx.runQuery(internal.settings.read, {});
-    if (!settings.payments.testGatewayEnabled) {
+    if (!testGatewayAllowed(settings)) {
       throw new Error("The test gateway is disabled, so simulated payments are refused.");
     }
     const secret = requireEnv(["TEST_GATEWAY_WEBHOOK_SECRET"])
       .TEST_GATEWAY_WEBHOOK_SECRET;
     const order: Doc<"orders"> | null = await ctx.runQuery(
       api.orders.getOrderForCheckout,
-      { orderId: args.orderId },
+      { orderId: args.orderId, guestToken: args.guestToken },
     );
     if (!order) throw new Error("Order not found.");
     if (order.paymentMethod !== "online" || order.provider !== "test_gateway") {
@@ -446,7 +394,7 @@ export const handlePaypalWebhook = internalAction({
   },
 });
 
-/** Records a refund. Live gateway refunds require the provider credentials. */
+/** Submit the same refund id to Razorpay on every retry. Completion comes from its webhook. */
 export const requestRefund = action({
   args: {
     orderId: v.id("orders"),
@@ -455,100 +403,41 @@ export const requestRefund = action({
     refundId: v.optional(v.id("refunds")),
   },
   handler: async (ctx, args): Promise<RefundActionResult> => {
-    const adminEmail: Doc<"users"> | null = await ctx.runQuery(api.users.currentUser);
-    if (!adminEmail || adminEmail.role !== "admin") {
-      throw new Error("Admin access required.");
+    const actor = await ctx.runQuery(api.users.currentUser);
+    if (actor?.role !== "admin") throw new Error("Admin access required.");
+    if (!args.refundId || process.env.KNOKH_RAZORPAY_REFUNDS_ENABLED !== "true") {
+      return { ok: false, message: "Gateway refunds are unavailable. Use the provider dashboard for approved refunds." };
     }
-    const order: Doc<"orders"> | null = await ctx.runQuery(
-      api.orders.getOrderForCheckout,
-      { orderId: args.orderId },
-    );
-    if (!order) throw new Error("Order not found.");
-    const payment: Doc<"payments"> | null = await ctx.runQuery(
-      internal.payments.getOrderPayment,
-      { orderId: args.orderId },
-    );
-    if (!payment) {
-      return {
-        ok: false,
-        message:
-          "There is no payment record for this order, so no gateway refund is possible. Record the refund manually.",
-      };
-    }
-    if (args.amountMinor <= 0 || args.amountMinor > order.totalMinor) {
-      throw new Error("Refund amount must be greater than zero and no more than the order total.");
-    }
-
-    if (payment.provider === "razorpay") {
-      const env = requireEnv(["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"]);
-      if (!payment.providerPaymentId) {
-        return { ok: false, message: "Razorpay payment id is not recorded for this order yet." };
-      }
-      const response: Response = await fetch(
-        `https://api.razorpay.com/v1/payments/${payment.providerPaymentId}/refund`,
-        {
-          method: "POST",
-          headers: jsonHeaders({
-            Authorization:
-              "Basic " +
-              Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64"),
-          }),
-          body: JSON.stringify({ amount: args.amountMinor, notes: { reason: args.reason } }),
-        },
-      );
-      const payload = await readJson(response);
-      if (!response.ok) {
-        return {
-          ok: false,
-          message: `Razorpay refund failed (HTTP ${response.status}): ${payload?.error?.description ?? "unknown error"}`,
-        };
-      }
-      return { ok: true, providerRefundId: String(payload.id), message: "Refund accepted by Razorpay." };
-    }
-
-    if (payment.provider === "cashfree") {
-      const env = requireEnv([
-        "CASHFREE_CLIENT_ID",
-        "CASHFREE_CLIENT_SECRET",
-        "CASHFREE_ENV",
-      ]);
-      const baseUrl =
-        env.CASHFREE_ENV === "production"
-          ? "https://api.cashfree.com/pg"
-          : "https://sandbox.cashfree.com/pg";
-      const response: Response = await fetch(`${baseUrl}/orders/${order.orderNumber}/refunds`, {
-        method: "POST",
-        headers: jsonHeaders({
-          "x-client-id": env.CASHFREE_CLIENT_ID,
-          "x-client-secret": env.CASHFREE_CLIENT_SECRET,
-          "x-api-version": env.CASHFREE_ENV === "production" ? "2025-01-01" : "2023-08-01",
-        }),
-        body: JSON.stringify({
-          refund_id: `knokh_${order.orderNumber}_${Date.now()}`,
-          refund_amount: Number((args.amountMinor / 100).toFixed(2)),
-          refund_note: args.reason.slice(0, 100),
-        }),
+    const settings: SiteSettings = await ctx.runQuery(internal.settings.read, {});
+    const provider = settings.payments.providers.find((entry) => entry.id === "razorpay");
+    if (!provider || !providerAllowed(provider)) throw new Error("Razorpay is unavailable.");
+    const reservation: { providerPaymentId: string; providerRefundId?: string } =
+      await ctx.runMutation(internal.payments.reserveRefund, {
+        orderId: args.orderId, refundId: args.refundId, amountMinor: args.amountMinor,
       });
-      const payload = await readJson(response);
-      if (!response.ok) {
-        return {
-          ok: false,
-          message: `Cashfree refund failed (HTTP ${response.status}): ${payload?.message ?? "unknown error"}`,
-        };
-      }
-      return {
-        ok: true,
-        providerRefundId: String(payload.cf_refund_id ?? payload.refund_id ?? ""),
-        message: "Refund accepted by Cashfree.",
-      };
+    if (reservation.providerRefundId) {
+      return { ok: true, providerRefundId: reservation.providerRefundId, message: "Refund already submitted." };
     }
-
-    return {
-      ok: false,
-      message:
-        payment.provider === "test_gateway"
-          ? "The test gateway is a sandbox and cannot issue real refunds. Mark the refund as completed manually."
-          : `Automatic refunds are not implemented for the "${payment.provider}" adapter. Process this refund in the provider dashboard and record it here.`,
-    };
+    const env = requireEnv(["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"]);
+    const response = await fetch(
+      `https://api.razorpay.com/v1/payments/${reservation.providerPaymentId}/refund`,
+      {
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+        headers: jsonHeaders({
+          Authorization: "Basic " + Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64"),
+          "X-Refund-Idempotency": String(args.refundId),
+        }),
+        body: JSON.stringify({ amount: args.amountMinor, notes: { knokhRefundId: String(args.refundId) } }),
+      },
+    );
+    const result = await readJson(response);
+    if (!response.ok || !result.id || !/^rfnd_[A-Za-z0-9]+$/.test(result.id) ||
+        result.amount !== args.amountMinor || result.payment_id !== reservation.providerPaymentId) {
+      return { ok: false, message: "Refund submission is unconfirmed. Reconcile before retrying with the same refund record." };
+    }
+    await ctx.runMutation(internal.payments.attachProviderRefund, { refundId: args.refundId, providerRefundId: result.id });
+    return { ok: true, providerRefundId: result.id, message: "Razorpay accepted the refund. Awaiting confirmation." };
   },
 });

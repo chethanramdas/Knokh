@@ -371,6 +371,8 @@ const schema = defineSchema(
       costTotalMinor: v.number(),
       couponCode: v.optional(v.string()),
       cartOwnerKey: v.string(),
+      guestAccessHash: v.optional(v.string()),
+      guestAccessExpiresAt: v.optional(v.number()),
       shippingAddress: addressSnapshotValidator,
       billingAddress: v.optional(addressSnapshotValidator),
       shippingMethod: v.object({
@@ -379,6 +381,7 @@ const schema = defineSchema(
         etaDays: v.number(),
         rateMinor: v.number(),
       }),
+      deliveryRange: v.optional(v.object({ earliest: v.string(), latest: v.string() })),
       paymentMethod: v.union(
         v.literal("online"),
         v.literal("cod"),
@@ -446,6 +449,7 @@ const schema = defineSchema(
       disputeRef: v.optional(v.string()),
       signatureVerified: v.optional(v.boolean()),
       gatewayResponseSummary: v.optional(v.string()),
+      gatewaySessionStartedAt: v.optional(v.number()),
       createdAt: v.number(),
       updatedAt: v.number(),
     })

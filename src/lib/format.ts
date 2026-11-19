@@ -85,3 +85,10 @@ export function downloadTextFile(
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
 }
+
+export function formatDeliveryRange(range: { earliest: string; latest: string }) {
+  const formatter = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  const earliest = formatter.format(new Date(range.earliest));
+  const latest = formatter.format(new Date(range.latest));
+  return earliest === latest ? earliest : `${earliest}–${latest}`;
+}

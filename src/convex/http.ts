@@ -18,7 +18,18 @@ auth.addHttpRoutes(http);
 const paymentWebhook = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const provider = url.pathname.split("/").filter(Boolean).pop() ?? "";
-  const rawBody = await request.text();
+  const maxBodyBytes = 256 * 1024;
+  if (Number(request.headers.get("content-length")) > maxBodyBytes) {
+    return new Response(null, { status: 413 });
+  }
+  const rawBytes = await request.arrayBuffer();
+  if (rawBytes.byteLength > maxBodyBytes) return new Response(null, { status: 413 });
+  let rawBody: string;
+  try {
+    rawBody = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(rawBytes);
+  } catch {
+    return new Response(null, { status: 400 });
+  }
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
     headers[key.toLowerCase()] = value;
@@ -45,11 +56,12 @@ const paymentWebhook = httpAction(async (ctx, request) => {
   const result = await ctx.runMutation(internal.payments.processWebhookEvent, {
     provider,
     rawBody,
+    rawBytes: provider === "razorpay" ? rawBytes : undefined,
     headers,
   });
 
   return new Response(JSON.stringify(result), {
-    status: result.ok ? 200 : 400,
+    status: result.ok ? 200 : result.reason === "Payment mapping is pending." ? 503 : 400,
     headers: { "Content-Type": "application/json" },
   });
 });
@@ -124,7 +136,7 @@ http.route({
     for (const brand of entries.brands) push(`/brand/${brand.slug}`, undefined, "0.6");
     for (const collection of entries.collections) push(`/collections/${collection.slug}`, undefined, "0.6");
     for (const product of entries.products) {
-      push(`/product/${product.slug}`, new Date(product.updatedAt).toISOString(), "0.8");
+      push(`/product/${encodeURIComponent(product.slug)}`, new Date(product.updatedAt).toISOString(), "0.8");
     }
     for (const page of [
       "about",

@@ -10,9 +10,12 @@ import {
   resolveOwnerKey,
   writeAuditLog,
 } from "./lib/auth";
+import { estimateDelivery, indianPin } from "./lib/delivery";
+import { hashOrderToken } from "./lib/orderAccess";
 import { convertMinor } from "./lib/money";
 import { buildPricedCart } from "./lib/pricing";
-import { getSettings, providerRuntimeStatus } from "./lib/settings";
+import { getSettings } from "./lib/settings";
+import { providerAllowed, testGatewayAllowed } from "./lib/paymentMode";
 import { generateOrderNumber, isEmailish } from "./lib/util";
 
 const addressValidator = v.object({
@@ -53,15 +56,18 @@ export function validateAddress(address: AddressInput): string[] {
   if (address.state.trim().length < 2)
     errors.push("Enter the state or region.");
   const postal = address.postalCode.trim();
-  if (address.countryCode.toUpperCase() === "IN") {
-    if (!/^[1-9][0-9]{5}$/.test(postal)) {
-      errors.push("Enter a valid 6-digit Indian PIN code.");
-    }
-  } else if (!/^[A-Za-z0-9][A-Za-z0-9 -]{2,9}$/.test(postal)) {
-    errors.push("Enter a valid postal code.");
+  if (address.countryCode.trim().toUpperCase() !== "IN") {
+    errors.push("KNOKH delivers within India.");
   }
-  if (address.countryCode.trim().length !== 2) {
-    errors.push("Choose a destination country.");
+  if (!indianPin.test(postal)) {
+    errors.push("Enter a valid 6-digit Indian PIN code.");
+  }
+  const maxLengths = { fullName: 120, phone: 32, email: 254, line1: 160, line2: 160, city: 100, state: 100 };
+  for (const [field, limit] of Object.entries(maxLengths)) {
+    if ((address[field as keyof AddressInput]?.length ?? 0) > limit) {
+      errors.push("An address field exceeds its maximum length.");
+      break;
+    }
   }
   return errors;
 }
@@ -99,6 +105,14 @@ export function shippingOptionsFor(args: {
   ];
 }
 
+export const deliveryEstimate = query({
+  args: {
+    pin: v.string(),
+    method: v.union(v.literal("standard"), v.literal("express")),
+  },
+  handler: (_ctx, { pin, method }) => estimateDelivery(process.env.KNOKH_DELIVERY_PLAN, pin.trim(), method, Date.now()),
+});
+
 export const getCheckoutQuote = query({
   args: {
     guestKey: v.optional(v.string()),
@@ -123,8 +137,8 @@ export const getCheckoutQuote = query({
       .withIndex("by_cart", (q) => q.eq("cartId", cart._id))
       .take(100);
 
-    const countryCode = (args.countryCode ?? "IN").toUpperCase();
-    const currency = args.currency || cart.currency;
+    const countryCode = "IN";
+    const currency = "INR";
     const priced = await buildPricedCart(ctx, {
       items,
       settings,
@@ -160,14 +174,14 @@ export const getCheckoutQuote = query({
 
     // Provider eligibility is derived from configuration status + destination.
     const onlineProviders = settings.payments.providers
-      .filter((provider) => provider.enabled)
+      .filter(providerAllowed)
+      .sort((a, b) => Number(b.id === "razorpay") - Number(a.id === "razorpay"))
       .filter((provider) => provider.countries.includes(countryCode))
       .filter((provider) => provider.currencies.includes(currency))
       .map((provider) => ({
         id: provider.id,
         label: provider.label,
-        status: providerRuntimeStatus(provider.envVars),
-        missingEnvVars: provider.envVars,
+        status: "configured" as const,
         docsUrl: provider.docsUrl,
       }));
 
@@ -199,7 +213,7 @@ export const getCheckoutQuote = query({
           settings.commerce.codEnabled && zone?.codAvailable
             ? { id: "cod", label: "Cash on delivery" }
             : null,
-        testGateway: settings.payments.testGatewayEnabled
+        testGateway: testGatewayAllowed(settings)
           ? {
               id: "test_gateway",
               label: "Test gateway (sandbox, no real money)",
@@ -253,7 +267,7 @@ export const placeOrder = mutation({
     if (items.length === 0) throw new Error("Your cart is empty.");
 
     const email = args.contact.email.trim().toLowerCase();
-    if (!isEmailish(email))
+    if (email.length > 254 || !isEmailish(email))
       throw new Error("Enter a valid email address for the order updates.");
     if (!user && !settings.commerce.guestCheckoutEnabled) {
       throw new Error(
@@ -263,8 +277,12 @@ export const placeOrder = mutation({
     const addressErrors = validateAddress(args.shippingAddress);
     if (addressErrors.length > 0) throw new Error(addressErrors.join(" "));
 
-    const countryCode = args.shippingAddress.countryCode.toUpperCase();
-    const currency = args.currency || cart.currency;
+    const countryCode = "IN";
+    const currency = "INR";
+    if (args.currency && args.currency !== currency) throw new Error("Checkout is available in INR.");
+    if (args.contact.name.length > 120 || (args.notes?.length ?? 0) > 1000) {
+      throw new Error("Check the length of your contact details and notes.");
+    }
     const priced = await buildPricedCart(ctx, {
       items,
       settings,
@@ -299,9 +317,16 @@ export const placeOrder = mutation({
       freeQualified,
     });
     const shippingOption =
-      options.find((option) => option.id === args.shippingMethodId) ??
-      options[0];
+      options.find((option) => option.id === args.shippingMethodId);
     if (!shippingOption) throw new Error("Choose a shipping method.");
+
+    const delivery = estimateDelivery(
+      process.env.KNOKH_DELIVERY_PLAN, args.shippingAddress.postalCode.trim(), shippingOption.id, Date.now(),
+    );
+    if (delivery.status === "unsupported") throw new Error("This delivery option is unavailable for the PIN code.");
+    if (process.env.KNOKH_DELIVERY_PLAN && delivery.status !== "available") {
+      throw new Error("Delivery could not be verified for this PIN code. Contact support.");
+    }
 
     if (args.paymentMethod === "cod") {
       if (!settings.commerce.codEnabled || !zone.codAvailable) {
@@ -315,17 +340,13 @@ export const placeOrder = mutation({
     if (args.paymentMethod === "online") {
       providerId = args.providerId;
       const isTestGateway =
-        providerId === "test_gateway" && settings.payments.testGatewayEnabled;
+        providerId === "test_gateway" && testGatewayAllowed(settings);
       const provider = settings.payments.providers.find(
         (entry) => entry.id === providerId,
       );
       if (!isTestGateway) {
         if (!provider) throw new Error("Choose a payment method.");
-        if (!provider.enabled) {
-          throw new Error(
-            `${provider.label} is not enabled for this store yet.`,
-          );
-        }
+        if (!providerAllowed(provider)) throw new Error("This payment method is unavailable.");
         if (!provider.countries.includes(countryCode)) {
           throw new Error(
             `${provider.label} cannot process payments for ${countryCode}.`,
@@ -336,11 +357,7 @@ export const placeOrder = mutation({
             `${provider.label} does not support ${currency} payments.`,
           );
         }
-        if (providerRuntimeStatus(provider.envVars) !== "configured") {
-          throw new Error(
-            `${provider.label} is not configured yet. An administrator must add ${provider.envVars.join(", ")} before online payments can be accepted.`,
-          );
-        }
+
       }
     }
 
@@ -398,6 +415,10 @@ export const placeOrder = mutation({
         shippingOption.rateMinor +
         priced.dutyMinor;
 
+    if (!Number.isSafeInteger(totalMinor) || totalMinor < 0 || (args.paymentMethod === "online" && totalMinor === 0)) {
+      throw new Error("The order total is unavailable. Contact support.");
+    }
+    const guestToken = user ? undefined : crypto.randomUUID();
     const orderNumber = generateOrderNumber();
     const placedAt = Date.now();
     const orderId = await ctx.db.insert("orders", {
@@ -423,6 +444,8 @@ export const placeOrder = mutation({
       costTotalMinor: priced.costTotalBaseMinor,
       couponCode: priced.coupon.valid ? priced.coupon.code : undefined,
       cartOwnerKey: ownerKey,
+      guestAccessHash: guestToken ? hashOrderToken(guestToken) : undefined,
+      guestAccessExpiresAt: guestToken ? placedAt + 7 * 24 * 60 * 60 * 1000 : undefined,
       shippingAddress: {
         fullName: args.shippingAddress.fullName,
         phone: args.shippingAddress.phone,
@@ -431,9 +454,9 @@ export const placeOrder = mutation({
         line2: args.shippingAddress.line2,
         city: args.shippingAddress.city,
         state: args.shippingAddress.state,
-        postalCode: args.shippingAddress.postalCode,
+        postalCode: args.shippingAddress.postalCode.trim(),
         countryCode,
-        country: args.shippingAddress.country,
+        country: "India",
       },
       shippingMethod: {
         id: shippingOption.id,
@@ -441,6 +464,7 @@ export const placeOrder = mutation({
         etaDays: shippingOption.etaDays,
         rateMinor: shippingOption.rateMinor,
       },
+      deliveryRange: delivery.status === "available" ? delivery.range : undefined,
       paymentMethod: args.paymentMethod,
       provider: args.paymentMethod === "online" ? providerId : undefined,
       paymentStatus: args.paymentMethod === "cod" ? "cod_pending" : "pending",
@@ -558,7 +582,6 @@ export const placeOrder = mutation({
 
     await writeAuditLog(ctx, {
       actorId: user?._id,
-      actorEmail: email,
       action: "order.create",
       entity: "orders",
       entityId: String(orderId),
@@ -568,6 +591,7 @@ export const placeOrder = mutation({
 
     return {
       orderId,
+      guestToken,
       orderNumber,
       totalMinor,
       currency,

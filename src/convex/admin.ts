@@ -1,3 +1,4 @@
+import { isReservedRefund, readOrderRefunds, reconcileRefundTotals } from "./lib/refunds";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -1232,9 +1233,12 @@ export const createRefund = mutation({
     const admin = await requireAdmin(ctx);
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Order not found.");
-    if (args.amountMinor <= 0 || args.amountMinor > order.totalMinor) {
-      throw new Error("Refund amount must be between 0 and the order total.");
+    const refunds = await readOrderRefunds(ctx, order._id);
+    const reserved = refunds.filter(isReservedRefund).reduce((sum, refund) => sum + refund.amountMinor, 0);
+    if (!Number.isSafeInteger(args.amountMinor) || args.amountMinor <= 0 || reserved + args.amountMinor > order.totalMinor) {
+      throw new Error("The refund exceeds the remaining order total.");
     }
+    if (args.status && args.status !== "requested") throw new Error("Create a requested refund first.");
     const now = Date.now();
     const refundId = await ctx.db.insert("refunds", {
       orderId: order._id,
@@ -1278,25 +1282,35 @@ export const setRefundStatus = mutation({
     const admin = await requireAdmin(ctx);
     const refund = await ctx.db.get(args.refundId);
     if (!refund) throw new Error("Refund not found.");
+    const order = await ctx.db.get(refund.orderId);
+    if (!order) throw new Error("Order not found.");
+    if (refund.status === args.status && !args.providerRefundId && !args.notes) return { ok: true };
+    if (refund.status === "completed") throw new Error("A completed refund is final.");
+    if (refund.status === "processing" && refund.paymentId && args.status !== "processing") {
+      throw new Error("An in-flight refund must be reconciled with the provider.");
+    }
+    const refunds = await readOrderRefunds(ctx, order._id);
+    const providerRefundId = args.providerRefundId ?? refund.providerRefundId;
+    if (refund.providerRefundId && providerRefundId !== refund.providerRefundId) throw new Error("The provider reference is already set.");
+    if (providerRefundId && refunds.some((entry) => entry._id !== refund._id && entry.providerRefundId === providerRefundId)) {
+      throw new Error("That refund is already recorded.");
+    }
+    const reserved = refunds.filter((entry) => entry._id !== refund._id && isReservedRefund(entry))
+      .reduce((sum, entry) => sum + entry.amountMinor, 0);
+    if (isReservedRefund({ ...refund, status: args.status }) && reserved + refund.amountMinor > order.totalMinor) {
+      throw new Error("The refund exceeds the remaining order total.");
+    }
+    if (args.status === "completed" && order.paymentMethod === "online") {
+      throw new Error("Online refunds are completed by provider confirmation.");
+    }
     await ctx.db.patch(refund._id, {
       status: args.status,
-      providerRefundId: args.providerRefundId ?? refund.providerRefundId,
+      providerRefundId,
       notes: args.notes ?? refund.notes,
       updatedAt: Date.now(),
     });
-    const order = await ctx.db.get(refund.orderId);
-    if (order && args.status === "completed") {
-      const refunds = await ctx.db
-        .query("refunds")
-        .withIndex("by_order", (q) => q.eq("orderId", order._id))
-        .take(50);
-      const completed = refunds
-        .filter((entry) => entry.status === "completed")
-        .reduce((sum, entry) => sum + entry.amountMinor, 0);
-      await ctx.db.patch(order._id, {
-        paymentStatus: completed >= order.totalMinor ? "refunded" : "partially_refunded",
-        updatedAt: Date.now(),
-      });
+    if (args.status === "completed") {
+      await reconcileRefundTotals(ctx, order);
       if (order.userId) {
         await notifyUser(ctx, {
           userId: order.userId,
