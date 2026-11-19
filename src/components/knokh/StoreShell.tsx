@@ -501,8 +501,7 @@ function Footer() {
           <div>
             <LogoLink showTagline />
             <p className="mt-4 max-w-sm text-sm text-muted-foreground">
-              {brand.tagline} A multi-category marketplace with delivery in India and
-              internationally.
+              {brand.tagline} A multi-category marketplace with delivery within India.
             </p>
             <div className="mt-5">
               <p className="text-sm font-semibold">New arrivals and offers</p>
@@ -511,16 +510,8 @@ function Footer() {
               </div>
             </div>
             <div className="mt-5 space-y-1 text-sm text-muted-foreground">
-              {contact.supportEmail ? (
-                <p>
-                  Support:{" "}
-                  <a className="hover:text-foreground" href={`mailto:${contact.supportEmail}`}>
-                    {contact.supportEmail}
-                  </a>
-                </p>
-              ) : (
-                <p>Support email is not configured yet.</p>
-              )}
+              <p>Order support <a className="underline" href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a></p>
+              <p>General enquiries <a className="underline" href={`mailto:${BRAND.generalEmail}`}>{BRAND.generalEmail}</a></p>
               {contact.phone ? <p>Phone: {contact.phone}</p> : null}
               {contact.hours ? <p>{contact.hours}</p> : null}
             </div>

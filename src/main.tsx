@@ -26,9 +26,6 @@ const Checkout = lazy(() => import("./pages/Checkout.tsx"));
 const CheckoutReturn = lazy(() =>
   import("./pages/Checkout.tsx").then((module) => ({ default: module.CheckoutReturn })),
 );
-const SandboxCheckout = lazy(() =>
-  import("./pages/Checkout.tsx").then((module) => ({ default: module.SandboxCheckout })),
-);
 const OrderConfirmation = lazy(() => import("./pages/OrderConfirmation.tsx"));
 const TrackOrder = lazy(() => import("./pages/TrackOrder.tsx"));
 const Info = lazy(() => import("./pages/Info.tsx"));
@@ -180,7 +177,6 @@ createRoot(document.getElementById("root")!).render(
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/checkout/return" element={<CheckoutReturn />} />
-                  <Route path="/checkout/sandbox/:orderId" element={<SandboxCheckout />} />
                   <Route path="/order/:orderId" element={<OrderConfirmation />} />
                   <Route path="/order/:orderId/confirmation" element={<OrderConfirmation />} />
                   <Route path="/track-order" element={<TrackOrder />} />

@@ -51,19 +51,25 @@ export function usePageMeta(meta: PageMeta) {
     setMeta("name", "description", description);
     setMeta("property", "og:description", description);
 
-    const base = (meta.siteUrl ?? "").replace(/\/$/, "");
-    const canonical =
-      base && meta.path ? `${base}${meta.path}` : `${window.location.origin}${meta.path ?? window.location.pathname}`;
+    const canonical = new URL(meta.path ?? window.location.pathname, "https://knokh.com").href;
     setCanonical(canonical);
     setMeta("property", "og:url", canonical);
     setMeta("property", "og:type", meta.path?.startsWith("/product/") ? "product" : "website");
 
+    let imageUrl = "https://knokh.com/knokh-logo.png";
     if (meta.image) {
-      setMeta("property", "og:image", meta.image);
-      setMeta("name", "twitter:image", meta.image);
+      try {
+        const image = new URL(meta.image, canonical);
+        if (image.protocol === "https:") imageUrl = image.href;
+      } catch {
+        // Use the default social image if a catalog image URL is malformed.
+      }
     }
+    setMeta("property", "og:image", imageUrl);
+    setMeta("name", "twitter:image", imageUrl);
+    setMeta("name", "twitter:description", description);
 
-    setMeta("name", "robots", meta.noIndex ? "noindex, nofollow" : "index, follow");
+    setMeta("name", "robots", (meta.noIndex || window.location.hostname !== "knokh.com") ? "noindex, nofollow" : "index, follow");
 
     const scriptId = "knokh-json-ld";
     document.getElementById(scriptId)?.remove();
@@ -100,7 +106,7 @@ export function productJsonLd(args: {
   ratingCount?: number;
   brandName?: string;
 }): Record<string, unknown> {
-  const base = (args.siteUrl ?? "").replace(/\/$/, "");
+  const url = new URL(args.path, "https://knokh.com").href;
   const json: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -115,7 +121,7 @@ export function productJsonLd(args: {
       availability: args.inStock
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
-      url: base ? `${base}${args.path}` : undefined,
+      url,
     },
   };
   if (args.brandName) json.brand = { "@type": "Brand", name: args.brandName };
@@ -128,4 +134,17 @@ export function productJsonLd(args: {
     };
   }
   return json;
+}
+
+
+export function breadcrumbJsonLd(items: { name: string; path: string }[]) {
+  return {
+    "@type": "BreadcrumbList",
+    itemListElement: items.map(({ name, path }, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name,
+      item: new URL(path, "https://knokh.com").href,
+    })),
+  };
 }
