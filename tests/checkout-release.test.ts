@@ -362,6 +362,56 @@ describe("isolated checkout and signed payment lifecycle", () => {
     expect(await other.query(api.orders.myOrders, {})).toEqual([]);
   });
 
+  test("records a late verified capture on a cancelled order for refund review without dispatch", async () => {
+    const { t, input } = await fixture();
+    const { orderId } = await t.mutation(api.checkout.placeOrder, input);
+    const payment = (await t.query(internal.payments.getOrderPayment, {
+      orderId,
+    }))!;
+    await t.mutation(internal.payments.beginGatewaySession, {
+      paymentId: payment._id,
+    });
+    await t.mutation(internal.payments.attachGatewaySession, {
+      paymentId: payment._id,
+      providerOrderId: "order_fixture",
+    });
+    const adminId = await t.run((ctx) =>
+      ctx.db.insert("users", { role: "admin" }),
+    );
+    const admin = t.withIdentity({
+      subject: adminId,
+      issuer: "https://qa.invalid",
+    });
+    await admin.mutation(api.orders.cancelOrder, { orderId });
+    const body = paymentEvent("payment.captured", payment.amountMinor);
+    const capture = (eventId: string) =>
+      t.mutation(internal.payments.processWebhookEvent, {
+        provider: "razorpay",
+        rawBody: body,
+        headers: {
+          "x-razorpay-event-id": eventId,
+          "x-razorpay-signature": signature(body),
+        },
+      });
+    expect((await capture("closed-capture")).status).toBe("captured");
+    expect((await capture("closed-capture-retry")).status).toBe("ignored");
+    const detail = await admin.query(api.orders.getOrderDetail, { orderId });
+    expect(detail?.order).toMatchObject({
+      fulfilmentStatus: "cancelled",
+      paymentStatus: "paid",
+    });
+    expect(detail?.refunds).toEqual([
+      expect.objectContaining({
+        amountMinor: payment.amountMinor,
+        status: "requested",
+      }),
+    ]);
+    expect(detail?.fulfilment).toEqual([]);
+    expect(
+      await t.query(internal.payments.getOrderPayment, { orderId }),
+    ).toMatchObject({ status: "captured", providerPaymentId: "pay_fixture" });
+  });
+
   test("verifies capture amount, deduplicates concurrent events and reconciles partial and full refunds", async () => {
     const { t, input } = await fixture();
     const { orderId, guestToken } = await t.mutation(api.checkout.placeOrder, {

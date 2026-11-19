@@ -37,8 +37,10 @@ async function applyPaidOrder(
     feeMinor?: number;
   },
 ): Promise<void> {
-  if (hasFinalPayment(args.order, args.payment) ||
-      args.order.fulfilmentStatus === "cancelled" || args.order.fulfilmentStatus === "returned") return;
+  if (hasFinalPayment(args.order, args.payment)) return;
+  const closed = args.order.fulfilmentStatus === "cancelled" ||
+    args.order.fulfilmentStatus === "returned";
+  if (closed && args.payment.provider !== "razorpay") return;
   const now = Date.now();
   await ctx.db.patch(args.payment._id, {
     status: "captured",
@@ -53,7 +55,6 @@ async function applyPaidOrder(
     updatedAt: now,
   });
 
-  const alreadyPaid = args.order.paymentStatus === "paid";
   await ctx.db.patch(args.order._id, {
     paymentStatus: "paid",
     fulfilmentStatus:
@@ -63,30 +64,56 @@ async function applyPaidOrder(
     updatedAt: now,
   });
 
-  if (!alreadyPaid) {
-    await queueFulfilmentForOrder(ctx, { ...args.order, paymentStatus: "paid" });
-    if (args.order.userId) {
-      await notifyUser(ctx, {
-        userId: args.order.userId,
-        type: "payment_captured",
-        title: `Payment received for ${args.order.orderNumber}`,
-        body: "Your order is confirmed and is being prepared for dispatch.",
-        link: `/account/orders`,
+  if (closed) {
+    const refunds = await ctx.db.query("refunds").withIndex("by_order", (q) =>
+      q.eq("orderId", args.order._id),
+    ).collect();
+    const remaining = args.payment.amountMinor - refunds
+      .filter((refund) => refund.status !== "failed" && refund.status !== "rejected")
+      .reduce((sum, refund) => sum + refund.amountMinor, 0);
+    if (Number.isSafeInteger(remaining) && remaining > 0) {
+      await ctx.db.insert("refunds", {
         orderId: args.order._id,
+        paymentId: args.payment._id,
+        amountMinor: remaining,
+        currency: args.payment.currency,
+        reason: "Payment captured after the order closed",
+        status: "requested",
+        createdAt: now,
+        updatedAt: now,
       });
     }
     await notifyAdmins(ctx, {
-      type: "payment_captured",
-      title: `Payment received · ${args.order.orderNumber}`,
-      body: `Settled via ${args.payment.provider}. Fulfilment has been queued.`,
+      type: "payment_reconciliation",
+      title: `Review payment for closed order ${args.order.orderNumber}`,
+      body: "A verified payment arrived after the order closed. Review the refund in the order dashboard.",
       link: `/admin/orders/${args.order._id}`,
     });
-    await ctx.db.insert("analytics_events", {
-      type: "order_placed",
+    return;
+  }
+
+  await queueFulfilmentForOrder(ctx, { ...args.order, paymentStatus: "paid" });
+  if (args.order.userId) {
+    await notifyUser(ctx, {
+      userId: args.order.userId,
+      type: "payment_captured",
+      title: `Payment received for ${args.order.orderNumber}`,
+      body: "Your order is confirmed and is being prepared for dispatch.",
+      link: "/account/orders",
       orderId: args.order._id,
-      createdAt: now,
     });
   }
+  await notifyAdmins(ctx, {
+    type: "payment_captured",
+    title: `Payment received · ${args.order.orderNumber}`,
+    body: `Settled via ${args.payment.provider}. Fulfilment has been queued.`,
+    link: `/admin/orders/${args.order._id}`,
+  });
+  await ctx.db.insert("analytics_events", {
+    type: "order_placed",
+    orderId: args.order._id,
+    createdAt: now,
+  });
 }
 
 function hasFinalPayment(order: Doc<"orders">, payment: Doc<"payments">) {
@@ -214,8 +241,9 @@ export const processWebhookEvent = internalMutation({
       }
       return { ok: true, duplicate: false, status: "ignored" };
     }
-    if (order.fulfilmentStatus === "cancelled" || order.fulfilmentStatus === "returned") {
-      if (parsed.status !== "refunded") return reject("Payment received on a closed order. Reconciliation required.");
+    if ((order.fulfilmentStatus === "cancelled" || order.fulfilmentStatus === "returned") &&
+        parsed.status !== "refunded" && !(args.provider === "razorpay" && parsed.status === "captured")) {
+      return reject("Payment received on a closed order. Reconciliation required.");
     }
 
     const now = Date.now();
