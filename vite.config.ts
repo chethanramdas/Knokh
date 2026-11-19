@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   const pagesBranch = process.env.CF_PAGES_BRANCH;
   const isPreview = process.env.CF_PAGES === "1" && pagesBranch !== "main";
   const convexUrl = isPreview
-    ? pagesBranch === "feature/knokh-storefront-hardening"
+    ? pagesBranch === "feat/knokh-hardening"
       ? stagingConvex
       : env.VITE_CONVEX_URL || ""
     : env.VITE_CONVEX_URL || (pagesBranch === "main" ? productionConvex : "");

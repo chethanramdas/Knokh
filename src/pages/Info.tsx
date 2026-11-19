@@ -1,3 +1,4 @@
+import { CUSTOMER_SUPPORT_EMAIL, GENERAL_ENQUIRIES_EMAIL, RETURNS_NOTICE } from "@/lib/storePolicy";
 import { useMutation } from "convex/react";
 import { Loader2, Mail, MessageSquare, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -137,7 +138,7 @@ const PAGES: Record<
       {
         heading: "Destinations",
         body: [
-          "Serviceable countries and their delivery windows are configured in Admin → Settings → Shipping zones. Countries marked as not serviceable cannot be selected at checkout.",
+          "KNOKH delivers within India. Delivery options depend on the destination PIN code.",
           "Some products are restricted to specific destinations by the supplier or by law. The product page lists the destinations a product can ship to.",
         ],
       },
@@ -145,42 +146,41 @@ const PAGES: Record<
         heading: "Charges and free delivery",
         body: [
           "Shipping rates are set per destination zone. Where free delivery is offered above a threshold, the threshold is applied to the item subtotal and is shown in your cart.",
-          "Duties and import taxes for cross-border orders may be charged by your local customs authority on delivery. We do not claim prepaid duties unless the checkout explicitly says so.",
+          "Review delivery charges at checkout before placing your order.",
         ],
       },
       {
         heading: "Dispatch and tracking",
         body: [
-          "Dispatch estimates are shown on each product. Tracking numbers are added to your order as soon as the fulfilment partner provides them; not every partner supplies tracking for every destination.",
+          "Where carrier timing is available, the product page shows an estimated delivery range for your PIN code. Tracking numbers are added to your order as soon as the fulfilment partner provides them; not every partner supplies tracking for every destination.",
         ],
       },
     ],
   },
   "returns-refunds": {
-    title: "Returns and refunds",
-    summary: "How to return an item and how refunds are processed.",
+    title: "Returns & refunds policy",
+    summary: RETURNS_NOTICE,
     sections: [
       {
-        heading: "Return window",
+        heading: "When you can seek a remedy",
         body: [
-          "Return requests can be raised from the order page once your parcel has been shipped. The window and any category exclusions must be configured by the store owner to match their supplier agreements.",
+          "Contact us if your order arrives damaged, defective, counterfeit, incomplete or materially different from its description. Contact us if it has not arrived, arrives after the stated delivery schedule, or otherwise qualifies for a remedy under applicable law.",
+          "We will review the issue and provide the remedy available under applicable law. This may include accepting a return and issuing a partial or full refund.",
         ],
       },
       {
-        heading: "Condition",
+        heading: "How to contact us",
         body: [
-          "Items must be unused and returned in their original packaging with all accessories. Hygiene products, personal care items and customised goods may be excluded where local consumer law allows.",
+          "Send your order number and a short description of the issue to customer support. Include photos if they help explain what arrived. Support will explain the next steps, including any return arrangements.",
         ],
       },
       {
         heading: "Refund processing",
         body: [
-          "Every refund request is reviewed by a person. Once approved, the refund is issued through the original payment provider where the gateway supports it, and the refund record is stored against the order.",
-          "The time for the money to appear depends on the provider and your bank; we publish the provider's typical timeline once a gateway is configured.",
+          "We will confirm the amount and refund method after reviewing your claim. Timing can depend on the payment provider or bank.",
         ],
       },
     ],
-    needsOwnerInput: true,
   },
   "cancellation-policy": {
     title: "Cancellation policy",
@@ -334,26 +334,12 @@ const PAGES: Record<
     ],
   },
   "international-shipping": {
-    title: "International shipping",
-    summary: "Cross-border delivery, duties and currency.",
+    title: "Delivery destinations",
+    summary: "KNOKH delivers within India.",
     sections: [
       {
-        heading: "Eligibility",
-        body: [
-          "We only enable international checkout for destinations where a payment provider and a shipping route are both available. If a destination is not serviceable it is marked as such in the country selector and cannot be chosen at checkout.",
-        ],
-      },
-      {
-        heading: "Duties and taxes",
-        body: [
-          "For most cross-border orders, import duties and taxes are assessed by your country's customs authority and are payable by the recipient. We do not promise prepaid duties unless the checkout explicitly states that duties are included.",
-        ],
-      },
-      {
-        heading: "Currencies",
-        body: [
-          "You can browse and pay in the currencies enabled by the store owner. Display prices are converted using the store's configured rates; the order total is fixed in the checkout currency at the time the order is placed.",
-        ],
+        heading: "Check your PIN code",
+        body: ["Check delivery availability and estimated timing on the product page or at checkout."],
       },
     ],
   },
@@ -513,7 +499,7 @@ function ContactForm() {
 
 export default function Info() {
   const { slug = "" } = useParams();
-  const { config, contact } = useStore();
+  const { config } = useStore();
   const page = PAGES[slug];
 
   useEffect(() => {
@@ -578,21 +564,19 @@ export default function Info() {
 
       {slug === "contact" ? (
         <div className="mt-8 space-y-5">
-          {contact.supportEmail ? (
-            <p className="flex items-center gap-2 text-sm">
-              <Mail className="size-4 text-primary" />
-              <a href={`mailto:${contact.supportEmail}`} className="hover:underline">
-                {contact.supportEmail}
-              </a>
-            </p>
-          ) : (
-            <InfoNote>
-              A support email address has not been configured yet. Add one in Admin → Settings so
-              customers can be reached outside the contact form.
-            </InfoNote>
-          )}
+          <p className="flex items-center gap-2 text-sm">
+            <Mail className="size-4 text-primary" />
+            <a className="hover:underline" href={`mailto:${CUSTOMER_SUPPORT_EMAIL}`}>{CUSTOMER_SUPPORT_EMAIL}</a>
+          </p>
+          <p className="text-sm">General enquiries <a className="hover:underline" href={`mailto:${GENERAL_ENQUIRIES_EMAIL}`}>{GENERAL_ENQUIRIES_EMAIL}</a></p>
           <ContactForm />
         </div>
+      ) : null}
+
+      {slug.endsWith("policy") || slug === "returns-refunds" ? (
+        <p className="mt-6 text-sm">
+          Customer support <a className="text-primary underline" href={`mailto:${CUSTOMER_SUPPORT_EMAIL}`}>{CUSTOMER_SUPPORT_EMAIL}</a>
+        </p>
       ) : null}
 
       <div className="mt-10 flex flex-wrap gap-2 border-t border-border pt-6 text-sm">

@@ -58,10 +58,9 @@ export function usePageMeta(meta: PageMeta) {
     setMeta("property", "og:url", canonical);
     setMeta("property", "og:type", meta.path?.startsWith("/product/") ? "product" : "website");
 
-    if (meta.image) {
-      setMeta("property", "og:image", meta.image);
-      setMeta("name", "twitter:image", meta.image);
-    }
+    const socialImage = new URL(meta.image || "/knokh-logo.png", canonical).href;
+    setMeta("property", "og:image", socialImage);
+    setMeta("name", "twitter:image", socialImage);
 
     setMeta("name", "robots", meta.noIndex ? "noindex, nofollow" : "index, follow");
 
@@ -100,7 +99,7 @@ export function productJsonLd(args: {
   ratingCount?: number;
   brandName?: string;
 }): Record<string, unknown> {
-  const base = (args.siteUrl ?? "").replace(/\/$/, "");
+  const base = (args.siteUrl || "https://knokh.com").replace(/\/$/, "");
   const json: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -127,5 +126,19 @@ export function productJsonLd(args: {
       reviewCount: args.ratingCount,
     };
   }
-  return json;
+  delete json["@context"];
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      json,
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: `${base}/` },
+          { "@type": "ListItem", position: 2, name: "Shop", item: `${base}/shop` },
+          { "@type": "ListItem", position: 3, name: args.name, item: `${base}${args.path}` },
+        ],
+      },
+    ],
+  };
 }

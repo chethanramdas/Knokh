@@ -1,3 +1,5 @@
+import { RETURNS_NOTICE } from "@/lib/storePolicy";
+import { DeliveryEstimate } from "@/components/knokh/DeliveryEstimate";
 import { useMutation, useQuery } from "convex/react";
 import {
   Check,
@@ -42,7 +44,8 @@ export default function ProductDetail() {
 }
 
 function ProductDetailContent({ slug }: { slug: string }) {
-  const { guestKey, money, isWishlisted, toggleWishlist, zone, config, country, currency } =
+  const [deliveryPin, setDeliveryPin] = useState("");
+  const { guestKey, money, isWishlisted, toggleWishlist, config, country, currency } =
     useStore();
   const result = useQuery(api.catalog.getProductBySlug, { slug });
   const recordView = useMutation(api.catalog.recordProductView);
@@ -76,7 +79,8 @@ function ProductDetailContent({ slug }: { slug: string }) {
       ? product.seoTitle ?? `${product.name} — buy online`
       : "Product",
     description: product?.seoDescription ?? product?.summary,
-    path: `/product/${slug}`,
+    path: `/product/${encodeURIComponent(slug)}`,
+    noIndex: !product,
     siteUrl: config?.seo.siteUrl,
     image: product?.image,
     jsonLd: product
@@ -135,7 +139,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
   const unitPriceMinor = selectedVariant?.priceMinor ?? product.priceMinor;
   const unitCompareAtMinor = selectedVariant?.compareAtMinor ?? product.compareAtMinor;
   const inStock = availableStock > 0 && product.status === "published";
-  const shipsHere = product.shipsTo.length === 0 || product.shipsTo.includes(country);
+  const shipsHere = product.shipsTo.length === 0 || product.shipsTo.includes("IN");
   const wished = isWishlisted(String(product._id));
 
   const handleAdd = async () => {
@@ -364,8 +368,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
             </div>
             {!shipsHere ? (
               <InfoNote tone="warning" className="mt-4">
-                This product is currently not shipped to {country}. Choose a different
-                destination country in the header or contact support.
+                This product is currently unavailable for delivery in India.
               </InfoNote>
             ) : null}
             {availableStock > 0 && availableStock <= 5 ? (
@@ -380,22 +383,18 @@ function ProductDetailContent({ slug }: { slug: string }) {
               <p className="flex items-center gap-2 font-semibold">
                 <Truck className="size-4 text-primary" /> Delivery estimate
               </p>
-              <p className="mt-1 text-muted-foreground">
-                {zone
-                  ? `${Math.max(product.deliveryEstimateDays, zone.etaDays)} days to ${zone.country}`
-                  : `${product.deliveryEstimateDays} days`}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Duties and taxes are not prepaid unless stated at checkout.
-              </p>
+              <label className="mt-2 block text-xs" htmlFor="delivery-pin">India PIN code</label>
+              <input id="delivery-pin" className="mt-1 w-full rounded-md border bg-background p-2"
+                inputMode="numeric" autoComplete="postal-code" maxLength={6}
+                value={deliveryPin} onChange={(event) => setDeliveryPin(event.target.value)} />
+              {shipsHere ? <DeliveryEstimate pin={deliveryPin} /> : null}
             </div>
             <div className="rounded-xl border border-border p-4 text-sm">
               <p className="flex items-center gap-2 font-semibold">
                 <RotateCcw className="size-4 text-primary" /> Returns
               </p>
               <p className="mt-1 text-muted-foreground">
-                Return requests can be raised from your order page once the parcel is
-                shipped.
+                {RETURNS_NOTICE}
               </p>
               <Link to="/info/returns-refunds" className="mt-1 inline-block text-xs text-primary">
                 Read the returns policy
@@ -405,7 +404,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
 
           <p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
             <MapPin className="size-3.5" />
-            Ships to: {product.shipsTo.length > 0 ? product.shipsTo.join(", ") : "configured destinations"}
+            Ships to: {shipsHere ? "India, subject to PIN code serviceability" : "Currently unavailable in India"}
           </p>
           <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5" />
@@ -516,8 +515,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
             <p className="font-semibold">Shipping & returns</p>
             <ul className="mt-2 space-y-2 text-muted-foreground">
               <li>
-                Delivery estimate: {product.deliveryEstimateDays} days dispatch, plus
-                transit time for your destination.
+                Check your PIN code for available delivery estimates.
               </li>
               <li>Tracked delivery where the supplier provides tracking.</li>
               <li>

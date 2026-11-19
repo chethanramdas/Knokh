@@ -267,5 +267,5 @@ createRoot(document.getElementById("root")!).render(!convex ? (
         <Toaster />
       </ConvexAuthProvider>
     </RootErrorBoundary>
-  </StrictMode>,
+  </StrictMode>
 ));

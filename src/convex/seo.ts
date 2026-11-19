@@ -7,7 +7,7 @@ export const getSeoConfig = query({
   handler: async (ctx) => {
     const settings = await getSettings(ctx);
     return {
-      siteUrl: settings.seo.siteUrl,
+      siteUrl: settings.seo.siteUrl || "https://knokh.com",
       defaultTitle: settings.seo.defaultTitle,
       defaultDescription: settings.seo.defaultDescription,
       analyticsId: settings.seo.analyticsId,
@@ -35,7 +35,7 @@ export const sitemapEntries = internalQuery({
     const collections = await ctx.db.query("collections").take(100);
 
     return {
-      siteUrl: settings.seo.siteUrl,
+      siteUrl: settings.seo.siteUrl || "https://knokh.com",
       products: products.map((product) => ({
         slug: product.slug,
         updatedAt: product.updatedAt,
