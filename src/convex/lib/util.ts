@@ -25,7 +25,7 @@ export function parsePriceToMinor(input: unknown): number | null {
     return Math.round(input * 100);
   }
   if (typeof input !== "string") return null;
-  const cleaned = input.replace(/[^0-9.\-]/g, "").trim();
+  const cleaned = input.replace(/[^0-9.-]/g, "").trim();
   if (!cleaned) return null;
   const value = Number(cleaned);
   if (!Number.isFinite(value)) return null;
@@ -35,7 +35,7 @@ export function parsePriceToMinor(input: unknown): number | null {
 export function parseIntSafe(input: unknown, fallback = 0): number {
   if (typeof input === "number" && Number.isFinite(input)) return Math.trunc(input);
   if (typeof input === "string") {
-    const value = Number(input.replace(/[^0-9.\-]/g, ""));
+    const value = Number(input.replace(/[^0-9.-]/g, ""));
     if (Number.isFinite(value)) return Math.trunc(value);
   }
   return fallback;

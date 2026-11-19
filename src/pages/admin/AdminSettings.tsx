@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from "convex/react";
 import { ArrowDown, ArrowUp, Loader2, Save } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { InfoNote, LoadingBlock, SectionHeading, StatusPill } from "@/components/knokh/ui";
 import { Button } from "@/components/ui/button";
@@ -54,14 +55,7 @@ type HomeSectionRow = {
 
 export default function AdminSettings() {
   const data = useQuery(api.admin.getSettingsAdmin, {});
-  const saveSettings = useMutation(api.admin.saveSettings);
   const { config } = useStore();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
-  const [zones, setZones] = useState<ZoneRow[]>([]);
-  const [taxRules, setTaxRules] = useState<TaxRow[]>([]);
-  const [sections, setSections] = useState<HomeSectionRow[]>([]);
-
   usePageMeta({
     title: "Settings & payments",
     noIndex: true,
@@ -69,15 +63,17 @@ export default function AdminSettings() {
     siteUrl: config?.seo.siteUrl,
   });
 
-  useEffect(() => {
-    if (!data) return;
-    setCurrencies(data.settings.currencies as CurrencyRow[]);
-    setZones(data.settings.shippingZones as ZoneRow[]);
-    setTaxRules(data.settings.taxRules as TaxRow[]);
-    setSections((data.settings.homepage as HomeSectionRow[]).slice().sort((a, b) => a.position - b.position));
-  }, [data]);
-
   if (!data) return <LoadingBlock label="Loading configuration…" />;
+  return <SettingsForm key={JSON.stringify(data.settings)} data={data} />;
+}
+
+function SettingsForm({ data }: { data: FunctionReturnType<typeof api.admin.getSettingsAdmin> }) {
+  const saveSettings = useMutation(api.admin.saveSettings);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [currencies, setCurrencies] = useState<CurrencyRow[]>(data.settings.currencies);
+  const [zones, setZones] = useState<ZoneRow[]>(data.settings.shippingZones);
+  const [taxRules, setTaxRules] = useState<TaxRow[]>(data.settings.taxRules);
+  const [sections, setSections] = useState<HomeSectionRow[]>(() => data.settings.homepage.slice().sort((a, b) => a.position - b.position));
 
   const settings = data.settings;
 
