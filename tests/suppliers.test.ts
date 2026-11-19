@@ -1,4 +1,4 @@
-import { describe, test, expect } from "vitest";
+import { afterEach, describe, test, expect, vi } from "vitest";
 import * as XLSX from "xlsx";
 import { parseProductSpreadsheet } from "../src/lib/importFile";
 import { convexTest } from "convex-test";
@@ -13,6 +13,8 @@ import {
   isPublicAddress,
   validatePublicHttps,
 } from "../src/convex/lib/publicHttp";
+afterEach(() => vi.unstubAllEnvs());
+
 const modules = import.meta.glob([
   "../src/convex/**/*.ts",
   "../src/convex/_generated/*.js",
@@ -154,6 +156,11 @@ describe("supplier safety", () => {
     expect((await t.run((ctx) => ctx.db.get(ids.p)))?.stock).toBe(8);
   });
   test("customer COD checkout reserves stock and creates one manual supplier task", async () => {
+    vi.stubEnv("KNOKH_DELIVERY_CONFIG", JSON.stringify({
+      originPin: "560001", carrier: "Fixture", dispatchDays: 1,
+      nonWorkingWeekdays: [0], holidays: [],
+      destinations: { "560001": { minDays: 1, maxDays: 2 } },
+    }));
     const { t, ids, customer, admin } = await fixture();
     await customer.mutation(api.cart.addToCart, {
       productId: ids.p,
@@ -165,6 +172,7 @@ describe("supplier safety", () => {
     });
     expect(quote?.blockers).toHaveLength(0);
     const args = {
+      requestId: crypto.randomUUID(),
       contact: {
         name: "Fixture Customer",
         email: "customer@example.test",
@@ -187,7 +195,7 @@ describe("supplier safety", () => {
     expect(tasks).toHaveLength(1);
     expect(tasks[0].status).toBe("needs_manual_fulfilment");
     await expect(
-      customer.mutation(api.checkout.placeOrder, args),
+      customer.mutation(api.checkout.placeOrder, { ...args, requestId: crypto.randomUUID() }),
     ).rejects.toThrow(/cart is empty/);
     await admin.mutation(api.suppliers.completeManualFulfilment, {
       supplierOrderId: tasks[0]._id,

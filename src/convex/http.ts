@@ -18,7 +18,28 @@ auth.addHttpRoutes(http);
 const paymentWebhook = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const provider = url.pathname.split("/").filter(Boolean).pop() ?? "";
-  const rawBody = await request.text();
+  const reader = request.body?.getReader();
+  if (!reader) return new Response(null, { status: 400 });
+  let rawBody = "";
+  let size = 0;
+  try {
+    // Strict UTF-8 with BOM preserved so re-encoding reproduces every input byte.
+    const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 256 * 1024) {
+        await reader.cancel();
+        return new Response(null, { status: 413 });
+      }
+      rawBody += decoder.decode(value, { stream: true });
+    }
+    rawBody += decoder.decode();
+  } catch {
+    await reader.cancel().catch(() => {});
+    return new Response(null, { status: 400 });
+  }
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
     headers[key.toLowerCase()] = value;
@@ -35,7 +56,7 @@ const paymentWebhook = httpAction(async (ctx, request) => {
     });
   }
 
-  if (!["razorpay", "cashfree", "test_gateway"].includes(provider)) {
+  if (!["razorpay", "cashfree"].includes(provider)) {
     return new Response(
       JSON.stringify({ ok: false, reason: `Unsupported provider "${provider}".` }),
       { status: 404, headers: { "Content-Type": "application/json" } },
@@ -49,7 +70,7 @@ const paymentWebhook = httpAction(async (ctx, request) => {
   });
 
   return new Response(JSON.stringify(result), {
-    status: result.ok ? 200 : 400,
+    status: result.ok ? 200 : result.reason?.startsWith("Matching payment") ? 503 : 400,
     headers: { "Content-Type": "application/json" },
   });
 });
@@ -57,7 +78,6 @@ const paymentWebhook = httpAction(async (ctx, request) => {
 http.route({ path: "/payments/webhook/razorpay", method: "POST", handler: paymentWebhook });
 http.route({ path: "/payments/webhook/cashfree", method: "POST", handler: paymentWebhook });
 http.route({ path: "/payments/webhook/paypal", method: "POST", handler: paymentWebhook });
-http.route({ path: "/payments/webhook/test_gateway", method: "POST", handler: paymentWebhook });
 
 /* ------------------------------------------------------------------ *
  * SEO routes
@@ -66,9 +86,8 @@ http.route({ path: "/payments/webhook/test_gateway", method: "POST", handler: pa
 http.route({
   path: "/robots.txt",
   method: "GET",
-  handler: httpAction(async (ctx) => {
-    const entries = await ctx.runQuery(internal.seo.sitemapEntries, {});
-    const base = entries.siteUrl.replace(/\/$/, "");
+  handler: httpAction(async () => {
+    const base = "https://knokh.com";
     const lines = [
       "User-agent: *",
       "Allow: /",
@@ -92,13 +111,7 @@ http.route({
   method: "GET",
   handler: httpAction(async (ctx) => {
     const entries = await ctx.runQuery(internal.seo.sitemapEntries, {});
-    const base = entries.siteUrl.replace(/\/$/, "");
-    if (!base) {
-      return new Response(
-        "Sitemap is unavailable until seo.siteUrl is configured in Admin → Settings.",
-        { status: 503, headers: { "Content-Type": "text/plain" } },
-      );
-    }
+    const base = "https://knokh.com";
     const escape = (value: string) =>
       value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const urls: string[] = [];
@@ -120,11 +133,14 @@ http.route({
     push("/deals", undefined, "0.8");
     push("/new-arrivals", undefined, "0.8");
     push("/categories", undefined, "0.8");
-    for (const category of entries.categories) push(`/category/${category.slug}`);
-    for (const brand of entries.brands) push(`/brand/${brand.slug}`, undefined, "0.6");
-    for (const collection of entries.collections) push(`/collections/${collection.slug}`, undefined, "0.6");
+    push("/collections");
+    push("/best-sellers");
+    push("/trending");
+    for (const category of entries.categories) push(`/category/${encodeURIComponent(category.slug)}`);
+    for (const brand of entries.brands) push(`/brand/${encodeURIComponent(brand.slug)}`, undefined, "0.6");
+    for (const collection of entries.collections) push(`/collections/${encodeURIComponent(collection.slug)}`, undefined, "0.6");
     for (const product of entries.products) {
-      push(`/product/${product.slug}`, new Date(product.updatedAt).toISOString(), "0.8");
+      push(`/product/${encodeURIComponent(product.slug)}`, new Date(product.updatedAt).toISOString(), "0.8");
     }
     for (const page of [
       "about",
@@ -139,7 +155,6 @@ http.route({
       "cookie-policy",
       "warranty",
       "payment-information",
-      "international-shipping",
       "invoice-and-tax",
       "accessibility",
     ]) {

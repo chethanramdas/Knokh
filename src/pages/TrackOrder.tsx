@@ -112,11 +112,7 @@ export default function TrackOrder() {
                   </StatusPill>
                 </div>
               </div>
-              <Button asChild className="mt-4">
-                <Link to={`/order/${result.orderId}?email=${encodeURIComponent(email)}`}>
-                  Open full order details
-                </Link>
-              </Button>
+              <Link className="mt-4 inline-block underline" to="/info/contact">Contact order support</Link>
             </div>
           )}
         </div>
