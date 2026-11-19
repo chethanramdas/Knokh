@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { StoreShell } from "@/components/knokh/StoreShell";
+import { PRODUCTION_CONVEX_ORIGIN } from "@/lib/deployment";
 import { StoreProvider } from "@/lib/store";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
@@ -99,34 +100,20 @@ function RouteLoading() {
 /** Hard guard so runtime errors never leave the preview as a blank page. */
 class RootErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean; message: string; stack: string }
+  { hasError: boolean }
 > {
-  state = { hasError: false, message: "", stack: "" };
-  static getDerivedStateFromError(error: Error) {
-    return {
-      hasError: true,
-      message: error.message || "Unknown runtime error",
-      stack: error.stack || "",
-    };
-  }
-  componentDidCatch(err: Error) {
-    console.error("[Preview] Root crash:", err);
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
-          <div className="max-w-lg text-center">
-            <p className="text-sm font-semibold">Preview runtime error</p>
-            <p className="mt-2 text-xs text-muted-foreground break-words">
-              {this.state.message}
-            </p>
-            {this.state.stack && (
-              <pre className="mt-3 text-left text-[10px] leading-4 text-muted-foreground/80 max-h-40 overflow-auto rounded border border-border/60 p-2">
-                {this.state.stack}
-              </pre>
-            )}
-          </div>
+        <div className="min-h-screen flex flex-col gap-3 items-center justify-center p-6" role="alert">
+          <p>KNOKH could not load this page.</p>
+          <button type="button" className="underline" onClick={() => window.location.reload()}>
+            Reload page
+          </button>
         </div>
       );
     }
@@ -134,7 +121,7 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
-const convexUrl = import.meta.env.VITE_CONVEX_URL || "https://agreeable-caterpillar-156.convex.cloud";
+const convexUrl = import.meta.env.VITE_CONVEX_URL || PRODUCTION_CONVEX_ORIGIN;
 const convex = new ConvexReactClient(convexUrl);
 
 function RouteSyncer() {
@@ -148,7 +135,7 @@ function RouteSyncer() {
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      if (event.data?.type === "navigate") {
+      if (event.source === window.parent && event.data?.type === "navigate") {
         if (event.data.direction === "back") window.history.back();
         if (event.data.direction === "forward") window.history.forward();
       }
@@ -166,7 +153,7 @@ createRoot(document.getElementById("root")!).render(
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
           <StoreProvider>
-            <RouteSyncer />
+            {import.meta.env.DEV ? <RouteSyncer /> : null}
             <Suspense fallback={<RouteLoading />}>
               <Routes>
                 {/* Storefront — shares the KNOKH header, footer and mobile nav */}

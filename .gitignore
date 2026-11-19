@@ -2,3 +2,7 @@
 node_modules
 dist
 src/convex/_generated
+.env
+.env.*
+!.env.example
+!.env.*.example

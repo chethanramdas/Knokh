@@ -14,6 +14,8 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 
+import { safeReturnTo } from "@/lib/authRedirect";
+import { usePageMeta } from "@/lib/seo";
 import { useAuth } from "@/hooks/use-auth";
 const logo = "/knokh-logo.png";
 import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
@@ -24,21 +26,11 @@ interface AuthProps {
   redirectAfterAuth?: string;
 }
 
-function resolveRedirectAfterAuth(
-  returnTo: string | null,
-  fallback = "/dashboard",
-) {
-  if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
-    return returnTo;
-  }
-  return fallback;
-}
-
 function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirect = resolveRedirectAfterAuth(
+  const redirect = safeReturnTo(
     searchParams.get("returnTo"),
     redirectAfterAuth,
   );
@@ -46,6 +38,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  usePageMeta({ title: "Sign in", noIndex: true, path: "/auth" });
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -61,13 +55,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       await signIn("email-otp", formData);
       setStep({ email: formData.get("email") as string });
       setIsLoading(false);
-    } catch (error) {
-      console.error("Email sign-in error:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to send verification code. Please try again.",
-      );
+    } catch {
+      setError("Failed to send verification code. Please try again.");
       setIsLoading(false);
     }
   };
@@ -80,11 +69,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       const formData = new FormData(event.currentTarget);
       await signIn("email-otp", formData);
 
-      console.log("signed in");
-
       navigate(redirect);
-    } catch (error) {
-      console.error("OTP verification error:", error);
+    } catch {
 
       setError("The verification code you entered is incorrect.");
       setIsLoading(false);
@@ -97,17 +83,24 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     setIsLoading(true);
     setError(null);
     try {
-      console.log("Attempting anonymous sign in...");
       await signIn("anonymous");
-      console.log("Anonymous sign in successful");
       navigate(redirect);
-    } catch (error) {
-      console.error("Guest login error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
-      setError(`Failed to sign in as guest: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch {
+      setError("Guest sign-in is unavailable. Please try again.");
       setIsLoading(false);
     }
   };
+
+  async function handleGoogleSignIn() {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await signIn("google", { redirectTo: redirect });
+    } catch {
+      setError("Google sign-in is unavailable. You can continue with email.");
+      setIsLoading(false);
+    }
+  }
 
   return (
     <div className="knokh-auth-page flex min-h-svh flex-col p-4 sm:p-6">
@@ -135,6 +128,14 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   Enter your email to log in or sign up
                 </CardDescription>
               </CardHeader>
+              {import.meta.env.VITE_GOOGLE_SIGN_IN === "true" ? (
+                <CardContent>
+                  <Button type="button" variant="outline" className="w-full" disabled={isLoading}
+                    onClick={() => void handleGoogleSignIn()}>
+                    Sign in with Google
+                  </Button>
+                </CardContent>
+              ) : null}
               <form onSubmit={handleEmailSubmit}>
                 <CardContent>
                   
