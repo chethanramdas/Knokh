@@ -291,6 +291,6 @@ When using convex, make sure:
 - NEVER have return type validators.
 
 
-## Cloudflare Pages deployment
+## KNOKH upgrade release
 
-The production build deploys the Convex functions before building the Vite storefront. Configure `CONVEX_DEPLOY_KEY` as a secret in Cloudflare Pages production settings. The storefront uses `VITE_CONVEX_URL` when provided and otherwise falls back to the production Convex URL configured in `src/main.tsx`.
+See [the upgrade review and owner gates](docs/KNOKH_UPGRADE_RELEASE.md). The existing Pages project builds the frontend from GitHub. The observed Pages build does not run `convex deploy`. Coordinate deployments using scoped Convex access and keep preview builds isolated.
