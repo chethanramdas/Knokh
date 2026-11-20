@@ -30,7 +30,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
-import { BRAND, FOOTER_COLUMNS } from "@/lib/brand";
+import { BRAND, FOOTER_COLUMNS, STOREFRONT_EMAILS } from "@/lib/brand";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Container } from "./ui";
@@ -511,16 +511,18 @@ function Footer() {
               </div>
             </div>
             <div className="mt-5 space-y-1 text-sm text-muted-foreground">
-              {contact.supportEmail ? (
-                <p>
-                  Support:{" "}
-                  <a className="hover:text-foreground" href={`mailto:${contact.supportEmail}`}>
-                    {contact.supportEmail}
-                  </a>
-                </p>
-              ) : (
-                <p>Support email is not configured yet.</p>
-              )}
+              <p>
+                Customer support{" "}
+                <a className="underline hover:text-foreground" href={`mailto:${STOREFRONT_EMAILS.support}`}>
+                  {STOREFRONT_EMAILS.support}
+                </a>
+              </p>
+              <p>
+                General enquiries{" "}
+                <a className="underline hover:text-foreground" href={`mailto:${STOREFRONT_EMAILS.contact}`}>
+                  {STOREFRONT_EMAILS.contact}
+                </a>
+              </p>
               {contact.phone ? <p>Phone: {contact.phone}</p> : null}
               {contact.hours ? <p>{contact.hours}</p> : null}
             </div>
