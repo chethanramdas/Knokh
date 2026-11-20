@@ -29,3 +29,6 @@ https://:version.:project.pages.dev/*
   X-Robots-Tag: noindex, nofollow
 /search
   X-Robots-Tag: noindex, follow
+
+/__sitemap-snapshot.xml
+  X-Robots-Tag: noindex

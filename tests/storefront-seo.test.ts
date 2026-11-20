@@ -111,3 +111,19 @@ it("serves a canonical sitemap from Convex for published catalog records only", 
   expect(xml).toContain("<lastmod>2026-11-20</lastmod>");
   expect(xml).not.toMatch(/unpublished-bag|<loc>https:\/\/knokh\.com\/(auth|checkout|account|admin|search)\b/);
 });
+
+it("serves the same sitemap from the production build if Convex is unavailable at the edge", async () => {
+  vi.spyOn(console, "warn").mockImplementationOnce(() => {});
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
+  const xml = '<?xml version="1.0"?><urlset><url><loc>https://knokh.com/</loc></url></urlset>';
+  const assets = vi.fn().mockResolvedValue(new Response(xml, {
+    headers: { "content-type": "application/xml" },
+  }));
+  const response = await sitemap({
+    request: new Request("https://knokh.com/sitemap.xml"),
+    env: { ASSETS: { fetch: assets } },
+  });
+  expect(response.headers.get("X-KNOKH-Sitemap-Source")).toBe("build-snapshot");
+  expect(await response.text()).toBe(xml);
+  expect(assets).toHaveBeenCalledWith(new URL("https://knokh.com/__sitemap-snapshot.xml"));
+});

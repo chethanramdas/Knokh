@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-sitemap-snapshot.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "preview": "vite preview",
