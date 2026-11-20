@@ -92,13 +92,7 @@ http.route({
   method: "GET",
   handler: httpAction(async (ctx) => {
     const entries = await ctx.runQuery(internal.seo.sitemapEntries, {});
-    const base = entries.siteUrl.replace(/\/$/, "");
-    if (!base) {
-      return new Response(
-        "Sitemap is unavailable until seo.siteUrl is configured in Admin → Settings.",
-        { status: 503, headers: { "Content-Type": "text/plain" } },
-      );
-    }
+    const base = "https://knokh.com";
     const escape = (value: string) =>
       value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const urls: string[] = [];
@@ -120,11 +114,14 @@ http.route({
     push("/deals", undefined, "0.8");
     push("/new-arrivals", undefined, "0.8");
     push("/categories", undefined, "0.8");
-    for (const category of entries.categories) push(`/category/${category.slug}`);
-    for (const brand of entries.brands) push(`/brand/${brand.slug}`, undefined, "0.6");
-    for (const collection of entries.collections) push(`/collections/${collection.slug}`, undefined, "0.6");
+    push("/collections");
+    push("/best-sellers");
+    push("/trending");
+    for (const category of entries.categories) push(`/category/${encodeURIComponent(category.slug)}`);
+    for (const brand of entries.brands) push(`/brand/${encodeURIComponent(brand.slug)}`, undefined, "0.6");
+    for (const collection of entries.collections) push(`/collections/${encodeURIComponent(collection.slug)}`, undefined, "0.6");
     for (const product of entries.products) {
-      push(`/product/${product.slug}`, new Date(product.updatedAt).toISOString(), "0.8");
+      push(`/product/${encodeURIComponent(product.slug)}`, new Date(product.updatedAt).toISOString(), "0.8");
     }
     for (const page of [
       "about",
