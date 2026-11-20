@@ -7,11 +7,14 @@ export async function onRequestGet({ request }) {
       headers: { "X-Robots-Tag": "noindex" },
     });
   }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
     const origin = PRODUCTION_CONVEX_ORIGIN.replace(/\.cloud$/, ".site");
     const response = await fetch(`${origin}/sitemap.xml`, {
       redirect: "error",
-      signal: AbortSignal.timeout(8_000),
+      signal: controller.signal,
+      headers: { Accept: "application/xml" },
     });
     if (
       response.ok &&
@@ -25,8 +28,11 @@ export async function onRequestGet({ request }) {
         },
       });
     }
-  } catch {
-    // The catalog endpoint can be retried without serving a false sitemap.
+    console.warn("Sitemap upstream returned an unexpected response", response.status);
+  } catch (error) {
+    console.warn("Sitemap upstream request failed", error instanceof Error ? error.name : "UnknownError");
+  } finally {
+    clearTimeout(timeout);
   }
   return new Response("Sitemap temporarily unavailable.", { status: 503 });
 }
