@@ -17,6 +17,11 @@ export const BRAND = {
     "KNOKH is a multi-category marketplace for electronics, fashion, home, beauty, fitness, toys, travel, office and automotive products with delivery in India and internationally.",
 } as const;
 
+export const STOREFRONT_EMAILS = {
+  support: "support@knokh.com",
+  contact: "contact@knokh.com",
+} as const;
+
 export const STORAGE_KEYS = {
   guestKey: "knokh.guestKey",
   currency: "knokh.currency",
