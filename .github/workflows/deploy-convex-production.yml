@@ -1,0 +1,41 @@
+name: Deploy Convex production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: knokh-convex-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: convex-production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Verify target and deploy the reviewed backend
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        shell: bash
+        run: |
+          if [[ -z "$CONVEX_DEPLOY_KEY" ]]; then
+            echo "::error::Add CONVEX_DEPLOY_KEY to the convex-production environment."
+            exit 1
+          fi
+          ./node_modules/.bin/convex deploy --yes \
+            --cmd-url-env-var-name KNOKH_CONVEX_TARGET_URL \
+            --cmd 'test "$KNOKH_CONVEX_TARGET_URL" = https://agreeable-caterpillar-156.convex.cloud'
