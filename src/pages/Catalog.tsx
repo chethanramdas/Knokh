@@ -7,7 +7,6 @@ import { ProductCard } from "@/components/knokh/ProductCard";
 import {
   Container,
   EmptyState,
-  FilterChips,
   LoadingBlock,
   Pagination,
   SectionHeading,

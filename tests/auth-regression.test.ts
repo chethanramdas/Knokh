@@ -12,6 +12,8 @@ let deliveredCode = "";
 beforeEach(async () => {
   const { privateKey } = await generateKeyPair("RS256", { extractable: true });
   vi.stubEnv("JWT_PRIVATE_KEY", await exportPKCS8(privateKey));
+  vi.stubEnv("AUTH_GOOGLE_ID", "fixture-client.apps.googleusercontent.com");
+  vi.stubEnv("AUTH_GOOGLE_SECRET", "oauth-fixture");
   vi.stubEnv("CONVEX_SITE_URL", "https://auth-fixture.invalid");
   vi.stubEnv("SITE_URL", "https://store-fixture.invalid");
   vi.stubEnv("RESEND_API_KEY", "isolated-test-placeholder");
@@ -139,4 +141,17 @@ describe("existing email OTP authentication after security updates", () => {
     ).rejects.toThrow(/not configured/);
     expect(deliveredCode).toBe("");
   });
+});
+
+test("configured Google sign-in starts Convex Auth's OAuth route with a verifier", async () => {
+  const t = convexTest(schema, modules);
+  const result = await t.action(api.auth.signIn, {
+    provider: "google", params: { redirectTo: "/account/orders" },
+  });
+  const redirect = new URL(result.redirect!);
+  expect(redirect.origin).toBe("https://auth-fixture.invalid");
+  expect(redirect.pathname).toBe("/api/auth/signin/google");
+  expect(redirect.searchParams.get("redirectTo")).toBe("/account/orders");
+  expect(redirect.searchParams.get("code")).toBe(result.verifier);
+  expect(result.verifier).toBeTruthy();
 });

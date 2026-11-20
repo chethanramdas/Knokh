@@ -11,10 +11,12 @@
 export const BRAND = {
   name: "KNOKH",
   wordmark: "KNOKH",
+  supportEmail: "support@knokh.com",
+  generalEmail: "contact@knokh.com",
   tagline: "Your World. One Marketplace.",
   homeTitle: "KNOKH — Discover More. Shop Smarter.",
   description:
-    "KNOKH is a multi-category marketplace for electronics, fashion, home, beauty, fitness, toys, travel, office and automotive products with delivery in India and internationally.",
+    "KNOKH is a multi-category marketplace for electronics, fashion, home, beauty, fitness, toys, travel, office and automotive products with delivery within India.",
 } as const;
 
 export const STORAGE_KEYS = {
@@ -88,7 +90,6 @@ export const FOOTER_COLUMNS: { title: string; links: { label: string; href: stri
     links: [
       { label: "About us", href: "/info/about" },
       { label: "Payment information", href: "/info/payment-information" },
-      { label: "International shipping", href: "/info/international-shipping" },
       { label: "Invoice & tax", href: "/info/invoice-and-tax" },
       { label: "Privacy policy", href: "/info/privacy-policy" },
       { label: "Terms & conditions", href: "/info/terms" },

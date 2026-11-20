@@ -1,0 +1,33 @@
+/*
+  Strict-Transport-Security: max-age=86400
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://checkout.razorpay.com; style-src 'self' https://fonts.googleapis.com; img-src 'self' https: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud https://*.razorpay.com; frame-src https://*.razorpay.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://*.razorpay.com
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/auth
+  X-Robots-Tag: noindex, nofollow
+/account
+  X-Robots-Tag: noindex, nofollow
+/account/*
+  X-Robots-Tag: noindex, nofollow
+/admin
+  X-Robots-Tag: noindex, nofollow
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+/cart
+  X-Robots-Tag: noindex, nofollow
+/checkout
+  X-Robots-Tag: noindex, nofollow
+/checkout/*
+  X-Robots-Tag: noindex, nofollow
+/order/*
+  X-Robots-Tag: noindex, nofollow
+/track-order
+  X-Robots-Tag: noindex, nofollow
+/search
+  X-Robots-Tag: noindex, follow

@@ -1,10 +1,20 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+import { PRODUCTION_CONVEX_ORIGIN } from "./src/lib/deployment";
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  const env = { ...loadEnv(mode, process.cwd(), "VITE_"), ...process.env };
+  if (command === "build" && process.env.CF_PAGES === "1" && env.CF_PAGES_BRANCH !== "main") {
+    const previewUrl = env.VITE_CONVEX_URL;
+    if (!previewUrl || !/^https:\/\/[a-z0-9-]+\.convex\.cloud$/.test(previewUrl) ||
+        previewUrl === PRODUCTION_CONVEX_ORIGIN || env.CONVEX_DEPLOY_KEY) {
+      throw new Error("Cloudflare preview requires an explicit isolated Convex URL and no deploy key.");
+    }
+  }
+  return {
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -93,4 +103,5 @@ export default defineConfig({
       overlay: false,
     },
   },
+  };
 });

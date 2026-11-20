@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { useMutation } from "convex/react";
 import { Loader2, Mail, MessageSquare, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -112,8 +113,8 @@ const PAGES: Record<
         heading: "Returns",
         body: ["Can I return an item?"],
         list: [
-          "Yes — within the return window in the returns policy, provided the item is unused and in its original packaging.",
-          "Raise the request from the order page. Refunds are processed after the returned item is received and inspected.",
+          "Change-of-mind returns and refunds are unavailable. Remedies required by Indian consumer law remain available.",
+          "Contact order support if your order is damaged, defective, misdescribed, missing, or otherwise eligible for a remedy.",
         ],
       },
     ],
@@ -137,50 +138,47 @@ const PAGES: Record<
       {
         heading: "Destinations",
         body: [
-          "Serviceable countries and their delivery windows are configured in Admin → Settings → Shipping zones. Countries marked as not serviceable cannot be selected at checkout.",
-          "Some products are restricted to specific destinations by the supplier or by law. The product page lists the destinations a product can ship to.",
+          "KNOKH ships to supported PIN codes within India.",
+          "Enter your PIN code on a product page or at checkout to check serviceability and the estimated delivery range.",
         ],
       },
       {
         heading: "Charges and free delivery",
         body: [
           "Shipping rates are set per destination zone. Where free delivery is offered above a threshold, the threshold is applied to the item subtotal and is shown in your cart.",
-          "Duties and import taxes for cross-border orders may be charged by your local customs authority on delivery. We do not claim prepaid duties unless the checkout explicitly says so.",
         ],
       },
       {
         heading: "Dispatch and tracking",
         body: [
-          "Dispatch estimates are shown on each product. Tracking numbers are added to your order as soon as the fulfilment partner provides them; not every partner supplies tracking for every destination.",
+          "Delivery ranges are estimates based on dispatch and transit times. Tracking appears in your order when the delivery partner provides it.",
         ],
       },
     ],
   },
   "returns-refunds": {
     title: "Returns and refunds",
-    summary: "How to return an item and how refunds are processed.",
+    summary: "Change-of-mind returns and refunds are unavailable. Your rights under Indian consumer law still apply.",
     sections: [
       {
-        heading: "Return window",
+        heading: "When we can help",
         body: [
-          "Return requests can be raised from the order page once your parcel has been shipped. The window and any category exclusions must be configured by the store owner to match their supplier agreements.",
+          "Contact us if your order arrives damaged, defective, counterfeit or materially different from its description, if it is undelivered or late in circumstances covered by law, or if you are otherwise entitled to a remedy. We will review the issue and provide the remedy required by applicable law.",
         ],
       },
       {
-        heading: "Condition",
+        heading: "How to raise an issue",
         body: [
-          "Items must be unused and returned in their original packaging with all accessories. Hygiene products, personal care items and customised goods may be excluded where local consumer law allows.",
+          "Contact order support with your order number and a brief description. Photos may help us assess damage or a defect. Signed-in customers can also raise an issue from the order page.",
         ],
       },
       {
         heading: "Refund processing",
         body: [
-          "Every refund request is reviewed by a person. Once approved, the refund is issued through the original payment provider where the gateway supports it, and the refund record is stored against the order.",
-          "The time for the money to appear depends on the provider and your bank; we publish the provider's typical timeline once a gateway is configured.",
+          "We will confirm the next steps and applicable timing when we resolve your request. When an online payment is refunded, we use the original payment method where supported.",
         ],
       },
     ],
-    needsOwnerInput: true,
   },
   "cancellation-policy": {
     title: "Cancellation policy",
@@ -334,28 +332,11 @@ const PAGES: Record<
     ],
   },
   "international-shipping": {
-    title: "International shipping",
-    summary: "Cross-border delivery, duties and currency.",
-    sections: [
-      {
-        heading: "Eligibility",
-        body: [
-          "We only enable international checkout for destinations where a payment provider and a shipping route are both available. If a destination is not serviceable it is marked as such in the country selector and cannot be chosen at checkout.",
-        ],
-      },
-      {
-        heading: "Duties and taxes",
-        body: [
-          "For most cross-border orders, import duties and taxes are assessed by your country's customs authority and are payable by the recipient. We do not promise prepaid duties unless the checkout explicitly states that duties are included.",
-        ],
-      },
-      {
-        heading: "Currencies",
-        body: [
-          "You can browse and pay in the currencies enabled by the store owner. Display prices are converted using the store's configured rates; the order total is fixed in the checkout currency at the time the order is placed.",
-        ],
-      },
-    ],
+    title: "Delivery destinations",
+    summary: "KNOKH ships within India.",
+    sections: [{ heading: "Available PIN codes", body: [
+      "Enter an Indian PIN code at checkout to check availability. Payments are taken in Indian rupees.",
+    ] }],
   },
   "invoice-and-tax": {
     title: "Invoice and tax information",
@@ -513,7 +494,7 @@ function ContactForm() {
 
 export default function Info() {
   const { slug = "" } = useParams();
-  const { config, contact } = useStore();
+  const { config } = useStore();
   const page = PAGES[slug];
 
   useEffect(() => {
@@ -525,7 +506,7 @@ export default function Info() {
     description: page?.summary,
     path: `/info/${slug}`,
     siteUrl: config?.seo.siteUrl,
-    noIndex: !page,
+    noIndex: !page || slug === "international-shipping",
   });
 
   if (!page) {
@@ -578,21 +559,21 @@ export default function Info() {
 
       {slug === "contact" ? (
         <div className="mt-8 space-y-5">
-          {contact.supportEmail ? (
-            <p className="flex items-center gap-2 text-sm">
-              <Mail className="size-4 text-primary" />
-              <a href={`mailto:${contact.supportEmail}`} className="hover:underline">
-                {contact.supportEmail}
-              </a>
-            </p>
-          ) : (
-            <InfoNote>
-              A support email address has not been configured yet. Add one in Admin → Settings so
-              customers can be reached outside the contact form.
-            </InfoNote>
-          )}
+          <p className="text-sm">
+            <Mail className="mr-2 inline size-4 text-primary" />
+            General enquiries <a className="underline" href={`mailto:${BRAND.generalEmail}`}>{BRAND.generalEmail}</a>
+          </p>
+          <p className="text-sm">
+            Order support <a className="underline" href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a>
+          </p>
           <ContactForm />
         </div>
+      ) : null}
+
+      {["returns-refunds", "shipping-policy", "privacy-policy", "terms", "cancellation-policy"].includes(slug) ? (
+        <p className="mt-6 text-sm">
+          Contact <a className="underline" href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a> for order support.
+        </p>
       ) : null}
 
       <div className="mt-10 flex flex-wrap gap-2 border-t border-border pt-6 text-sm">
