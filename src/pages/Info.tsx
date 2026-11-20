@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { STOREFRONT_EMAILS } from "@/lib/brand";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
 
@@ -513,7 +514,7 @@ function ContactForm() {
 
 export default function Info() {
   const { slug = "" } = useParams();
-  const { config, contact } = useStore();
+  const { config } = useStore();
   const page = PAGES[slug];
 
   useEffect(() => {
@@ -576,21 +577,25 @@ export default function Info() {
         ))}
       </div>
 
+      {["contact", "help", "shipping-policy", "returns-refunds", "cancellation-policy", "privacy-policy", "warranty", "payment-information"].includes(slug) ? (
+        <p className="mt-8 flex flex-wrap items-center gap-2 text-sm">
+          <Mail className="size-4 text-primary" aria-hidden="true" />
+          <span>Customer support</span>
+          <a href={`mailto:${STOREFRONT_EMAILS.support}`} className="underline">
+            {STOREFRONT_EMAILS.support}
+          </a>
+        </p>
+      ) : null}
+
       {slug === "contact" ? (
         <div className="mt-8 space-y-5">
-          {contact.supportEmail ? (
-            <p className="flex items-center gap-2 text-sm">
-              <Mail className="size-4 text-primary" />
-              <a href={`mailto:${contact.supportEmail}`} className="hover:underline">
-                {contact.supportEmail}
-              </a>
-            </p>
-          ) : (
-            <InfoNote>
-              A support email address has not been configured yet. Add one in Admin → Settings so
-              customers can be reached outside the contact form.
-            </InfoNote>
-          )}
+          <p className="flex flex-wrap items-center gap-2 text-sm">
+            <Mail className="size-4 text-primary" aria-hidden="true" />
+            <span>General enquiries</span>
+            <a href={`mailto:${STOREFRONT_EMAILS.contact}`} className="underline">
+              {STOREFRONT_EMAILS.contact}
+            </a>
+          </p>
           <ContactForm />
         </div>
       ) : null}
