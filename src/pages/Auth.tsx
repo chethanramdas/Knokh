@@ -130,8 +130,21 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
               </CardHeader>
               {import.meta.env.VITE_GOOGLE_SIGN_IN === "true" ? (
                 <CardContent>
-                  <Button type="button" variant="outline" className="w-full" disabled={isLoading}
-                    onClick={() => void handleGoogleSignIn()}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 w-full gap-2.5 border-[#747775] bg-white px-3 text-[#1f1f1f] hover:bg-[#f8faff] hover:text-[#1f1f1f] dark:border-[#747775] dark:bg-white dark:hover:bg-[#f8faff]"
+                    disabled={isLoading}
+                    onClick={() => void handleGoogleSignIn()}
+                  >
+                    <img
+                      src="https://developers.google.com/static/identity/images/g-logo.png"
+                      alt=""
+                      width={18}
+                      height={18}
+                      className="size-[18px] shrink-0 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
                     Sign in with Google
                   </Button>
                 </CardContent>
