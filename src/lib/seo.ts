@@ -21,6 +21,18 @@ function setCanonical(href: string) {
   link.href = href;
 }
 
+const storefrontOrigin = "https://knokh.com";
+
+function httpsImageUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value, storefrontOrigin);
+    if (url.protocol === "https:" && !url.username && !url.password) return url.href;
+  } catch {
+    // A malformed image should not invalidate the page metadata.
+  }
+}
+
 export type PageMeta = {
   title: string;
   description?: string;
@@ -51,19 +63,17 @@ export function usePageMeta(meta: PageMeta) {
     setMeta("name", "description", description);
     setMeta("property", "og:description", description);
 
-    const base = (meta.siteUrl ?? "").replace(/\/$/, "");
-    const canonical =
-      base && meta.path ? `${base}${meta.path}` : `${window.location.origin}${meta.path ?? window.location.pathname}`;
+    const canonical = new URL(meta.path ?? window.location.pathname, storefrontOrigin).href;
     setCanonical(canonical);
     setMeta("property", "og:url", canonical);
     setMeta("property", "og:type", meta.path?.startsWith("/product/") ? "product" : "website");
 
-    if (meta.image) {
-      setMeta("property", "og:image", meta.image);
-      setMeta("name", "twitter:image", meta.image);
-    }
+    const imageUrl = httpsImageUrl(meta.image) ?? `${storefrontOrigin}/knokh-logo.png`;
+    setMeta("property", "og:image", imageUrl);
+    setMeta("name", "twitter:image", imageUrl);
+    setMeta("name", "twitter:description", description);
 
-    setMeta("name", "robots", meta.noIndex ? "noindex, nofollow" : "index, follow");
+    setMeta("name", "robots", (meta.noIndex || window.location.hostname !== "knokh.com") ? "noindex, nofollow" : "index, follow");
 
     const scriptId = "knokh-json-ld";
     document.getElementById(scriptId)?.remove();
@@ -78,7 +88,6 @@ export function usePageMeta(meta: PageMeta) {
     meta.title,
     meta.description,
     meta.path,
-    meta.siteUrl,
     meta.image,
     meta.noIndex,
     meta.jsonLd,
@@ -100,14 +109,15 @@ export function productJsonLd(args: {
   ratingCount?: number;
   brandName?: string;
 }): Record<string, unknown> {
-  const base = (args.siteUrl ?? "").replace(/\/$/, "");
+  const url = new URL(args.path, storefrontOrigin).href;
+  const image = httpsImageUrl(args.image);
   const json: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: args.name,
     sku: args.sku,
     description: args.description,
-    image: args.image ? [args.image] : undefined,
+    image: image ? [image] : undefined,
     offers: {
       "@type": "Offer",
       price: (args.priceMinor / 100).toFixed(2),
@@ -115,7 +125,7 @@ export function productJsonLd(args: {
       availability: args.inStock
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
-      url: base ? `${base}${args.path}` : undefined,
+      url,
     },
   };
   if (args.brandName) json.brand = { "@type": "Brand", name: args.brandName };
@@ -128,4 +138,16 @@ export function productJsonLd(args: {
     };
   }
   return json;
+}
+
+export function breadcrumbJsonLd(items: { name: string; path: string }[]) {
+  return {
+    "@type": "BreadcrumbList",
+    itemListElement: items.map(({ name, path }, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name,
+      item: new URL(path, storefrontOrigin).href,
+    })),
+  };
 }

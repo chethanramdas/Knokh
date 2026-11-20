@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/input-otp";
 
 import { safeReturnTo } from "@/lib/authRedirect";
+import { usePageMeta } from "@/lib/seo";
 import { useAuth } from "@/hooks/use-auth";
 const logo = "/knokh-logo.png";
 import { ArrowRight, Loader2, Mail, UserX } from "lucide-react";
@@ -37,6 +38,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  usePageMeta({ title: "Sign in", noIndex: true, path: "/auth" });
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {

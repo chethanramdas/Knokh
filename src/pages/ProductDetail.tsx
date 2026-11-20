@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
-import { productJsonLd, usePageMeta } from "@/lib/seo";
+import { breadcrumbJsonLd, productJsonLd, usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
 import { cartErrorMessage } from "@/lib/cartErrors";
 import { cn } from "@/lib/utils";
@@ -71,29 +71,44 @@ function ProductDetailContent({ slug }: { slug: string }) {
     void recordView({ slug, guestKey: guestKey || undefined });
   }, [slug, guestKey, recordView]);
 
+  const path = `/product/${encodeURIComponent(slug)}`;
+  const defaultVariant = product?.variants[0];
+
   usePageMeta({
     title: product
       ? product.seoTitle ?? `${product.name} — buy online`
       : "Product",
     description: product?.seoDescription ?? product?.summary,
-    path: `/product/${slug}`,
-    siteUrl: config?.seo.siteUrl,
+    path,
     image: product?.image,
+    noIndex: result === null,
     jsonLd: product
-      ? productJsonLd({
-          name: product.name,
-          description: product.summary ?? product.description,
-          sku: product.sku,
-          image: product.image,
-          priceMinor: product.priceMinor,
-          currency: product.currency,
-          inStock: product.inStock,
-          siteUrl: config?.seo.siteUrl,
-          path: `/product/${slug}`,
-          ratingAvg: product.ratingAvg,
-          ratingCount: product.ratingCount,
-          brandName: result?.brand?.name,
-        })
+      ? {
+          "@context": "https://schema.org",
+          "@graph": [
+            productJsonLd({
+              name: product.name,
+              description: product.summary ?? product.description,
+              sku: defaultVariant?.sku ?? product.sku,
+              image: product.image,
+              priceMinor: defaultVariant?.priceMinor ?? product.priceMinor,
+              currency: product.currency,
+              inStock: defaultVariant ? defaultVariant.stock > 0 : product.inStock,
+              path,
+              ratingAvg: product.ratingAvg,
+              ratingCount: product.ratingCount,
+              brandName: result?.brand?.name,
+            }),
+            breadcrumbJsonLd([
+              { name: "Home", path: "/" },
+              { name: "Shop", path: "/shop" },
+              ...(result?.category
+                ? [{ name: result.category.name, path: `/category/${encodeURIComponent(result.category.slug)}` }]
+                : []),
+              { name: product.name, path },
+            ]),
+          ],
+        }
       : null,
   });
 
@@ -229,6 +244,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
               <img
                 src={product.images[activeImage]?.url ?? product.image}
                 alt={product.name}
+                fetchPriority="high"
                 className="size-full object-cover"
               />
             ) : (
@@ -250,7 +266,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
                   )}
                   aria-label={`Show image ${index + 1}`}
                 >
-                  <img src={image.url} alt="" className="size-full object-cover" />
+                  <img src={image.url} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
                 </button>
               ))}
             </div>

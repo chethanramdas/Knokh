@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
+import { usePageMeta } from "@/lib/seo";
 
 export default function NotFound() {
+  usePageMeta({ title: "Page not found", noIndex: true });
   return (
     <motion.div
       initial={{ opacity: 0 }}

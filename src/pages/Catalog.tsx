@@ -1,13 +1,12 @@
 import { useQuery } from "convex/react";
 import { Filter, PackageSearch, SlidersHorizontal, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useParams, useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { ProductCard } from "@/components/knokh/ProductCard";
 import {
   Container,
   EmptyState,
-  FilterChips,
   LoadingBlock,
   Pagination,
   SectionHeading,
@@ -60,6 +59,7 @@ export default function Catalog({
   preset?: string;
 }) {
   const params = useParams();
+  const { pathname } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const store = useStore();
   const { config, baseCurrencyConfig } = store;
@@ -164,7 +164,7 @@ export default function Catalog({
   usePageMeta({
     title: heading,
     description: subtitle ?? config?.seo.defaultDescription,
-    path: `/search?q=${encodeURIComponent(term)}`,
+    path: pathname,
     siteUrl: config?.seo.siteUrl,
     noIndex: mode === "search",
   });
