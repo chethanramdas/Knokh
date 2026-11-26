@@ -1,0 +1,4 @@
+# Reviewed false positive: documentation names tests/cart-session.test.ts;
+# the prose "missing-key ... keys add/persist" matches generic-api-key.
+# No credential value is present. Scope is exactly this commit/file/rule/line.
+7547736751c1c16ec06f22bcd913f431cd4aa201:docs/CART_REPAIR.md:generic-api-key:15

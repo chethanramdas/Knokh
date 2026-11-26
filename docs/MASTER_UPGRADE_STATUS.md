@@ -96,3 +96,11 @@ Turnstile not enforced, full rate limiting and exposed-function review incomplet
 - OSV Scanner v2.3.0: 2 HIGH reports against xlsx 0.20.3: GHSA-4r6h-8v6p-xvw6 and GHSA-5pgg-2g8v-p4x9. The installed tarball is supplied by SheetJS outside npm. OSV ranges contain no fixed event; applicability to the vendor build requires primary-vendor evidence before an exception. These findings remain blocking; no scanner check disabled.
 - Both scanner binaries were fetched from official GitHub releases and SHA256 verified against release asset digests. The scans were actually run, with secret findings redacted.
 - Contrast script: PASS for all checked homepage token combinations. This is not a full accessibility audit.
+
+## Follow-up verification after authorization
+
+- Storefront checks in GitHub Actions run 45877922739: SUCCESS.
+- Security workflow 45877922861 installed both scanners successfully; Gitleaks and OSV findings caused failure, not a broken scanner installation.
+- Historical Gitleaks entry reviewed: it is the documentation filename `tests/cart-session.test.ts` followed by prose about a missing-key test. No credential exists in that line. Added exactly one commit/file/rule/line fingerprint to `.gitleaksignore`; redacted history scan then passed. No broad filename/rule exclusion.
+- GitHub advisories specify affected SheetJS versions <0.19.3 for CVE-2023-30533 and <0.20.2 for CVE-2024-22363. The installed official vendor tarball is 0.20.3, while OSV reports an unbounded affected npm range. This is a metadata discrepancy, not evidence of a new vulnerability in 0.20.3. OSV remains blocking until a version/source/integrity-scoped review can be implemented; no global advisory ignore added. References: https://github.com/advisories/GHSA-4r6h-8v6p-xvw6 and https://github.com/advisories/GHSA-5pgg-2g8v-p4x9 .
+- The owner approved the Convex device login. This machine's network policy blocked https://auth.convex.dev:443 during polling; no authenticated CLI session was established and no backend deployment was performed. Repeating owner approval does not resolve this environment-level network block.
