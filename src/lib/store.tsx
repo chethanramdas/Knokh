@@ -203,7 +203,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return key;
   });
   const [currencyPreference, setCurrencyState] = useState(() => readStorage(STORAGE_KEYS.currency));
-  const [country, setCountryState] = useState(() => readStorage(STORAGE_KEYS.country) || "IN");
+  const [country, setCountryState] = useState("IN");
   const currency = currencyPreference || config?.viewer.defaultCurrency || config?.commerce.defaultCurrency || "INR";
   const adoptGuestCart = useMutation(api.cart.adoptGuestCart);
 
@@ -232,7 +232,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setCountry = useCallback((code: string) => {
-    setCountryState(code.toUpperCase());
+    if (code.toUpperCase() !== "IN") return;
+    setCountryState("IN");
     writeStorage(STORAGE_KEYS.country, code.toUpperCase());
   }, []);
 

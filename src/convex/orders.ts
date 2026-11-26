@@ -1,13 +1,13 @@
 import { v } from "convex/values";
-import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
+import { mutation, query } from "./_generated/server";
 import {
   getUser,
   notifyAdmins,
-  notifyUser,
   requireUser,
   writeAuditLog,
 } from "./lib/auth";
+import { canViewOrder } from "./lib/checkoutAccess";
 import { isEmailish, money0 } from "./lib/util";
 
 const ORDER_STATUSES = [
@@ -20,50 +20,50 @@ const ORDER_STATUSES = [
   "returned",
 ] as const;
 
-/**
- * Order detail access rules (enforced here, on the server):
- *  - the signed-in owner,
- *  - an administrator,
- *  - or a guest who supplies the exact email address used on the order.
- */
-async function loadOrderForViewer(
-  ctx: QueryCtx,
-  args: { orderId: Id<"orders">; email?: string },
-): Promise<Doc<"orders"> | null> {
-  const order = await ctx.db.get(args.orderId);
-  if (!order) return null;
-  const user = await getUser(ctx);
-  if (user?.role === "admin") return order;
-  if (order.userId && user?._id === order.userId) return order;
-  if (!order.userId) {
-    const provided = args.email?.trim().toLowerCase();
-    const expected = (order.shippingAddress.email ?? order.guestEmail ?? "").toLowerCase();
-    if (provided && expected && provided === expected) return order;
+function customerShipment(shipment: Doc<"shipments">) {
+  let trackingUrl: string | undefined;
+  if (shipment.trackingUrl) {
+    try {
+      const url = new URL(shipment.trackingUrl);
+      if (url.protocol === "https:" && !url.username && !url.password) {
+        trackingUrl = url.href;
+      }
+    } catch {
+      // Invalid legacy links remain in staff records.
+    }
   }
-  return null;
+  return {
+    _id: shipment._id,
+    carrier: shipment.carrier,
+    trackingNumber: shipment.trackingNumber,
+    trackingUrl,
+    status: shipment.status,
+    events: shipment.events,
+    estimatedDelivery: shipment.estimatedDelivery,
+    shippedAt: shipment.shippedAt,
+    deliveredAt: shipment.deliveredAt,
+  };
 }
 
 export const getOrderForCheckout = query({
-  args: { orderId: v.id("orders") },
+  args: { orderId: v.id("orders"), guestToken: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const user = await getUser(ctx);
     const order = await ctx.db.get(args.orderId);
-    if (!order) return null;
-    if (user?.role === "admin") return order;
-    if (order.userId && user?._id === order.userId) return order;
-    // A guest order must be confirmed by the client that just created it: the
-    // order id itself is unguessable, but we still require the checkout page to
-    // know the id. No other customer can reach another customer's order.
-    if (!order.userId) return order;
-    return null;
+    const user = await getUser(ctx);
+    if (!order || !canViewOrder(order, user, args.guestToken)) return null;
+    return {
+      _id: order._id, orderNumber: order.orderNumber, provider: order.provider,
+      currency: order.currency, totalMinor: order.totalMinor,
+    };
   },
 });
 
 export const getOrderDetail = query({
-  args: { orderId: v.id("orders"), email: v.optional(v.string()) },
+  args: { orderId: v.id("orders"), guestToken: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const order = await loadOrderForViewer(ctx, args);
-    if (!order) return null;
+    const order = await ctx.db.get(args.orderId);
+    const user = await getUser(ctx);
+    if (!order || !canViewOrder(order, user, args.guestToken)) return null;
     const items = await ctx.db
       .query("order_items")
       .withIndex("by_order", (q) => q.eq("orderId", order._id))
@@ -80,20 +80,75 @@ export const getOrderDetail = query({
       .query("return_requests")
       .withIndex("by_order", (q) => q.eq("orderId", order._id))
       .take(10);
-    const supplierOrders = await ctx.db
-      .query("supplier_orders")
-      .withIndex("by_order", (q) => q.eq("orderId", order._id))
-      .take(10);
+    const isAdmin = user?.role === "admin";
+    const supplierOrders = isAdmin
+      ? await ctx.db
+          .query("supplier_orders")
+          .withIndex("by_order", (q) => q.eq("orderId", order._id))
+          .take(10)
+      : [];
     const suppliers = await Promise.all(
       supplierOrders.map((entry) => ctx.db.get(entry.supplierId)),
     );
 
+    const customerOrder = {
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      currency: order.currency,
+      subtotalMinor: order.subtotalMinor,
+      discountMinor: order.discountMinor,
+      shippingMinor: order.shippingMinor,
+      taxMinor: order.taxMinor,
+      dutyMinor: order.dutyMinor,
+      totalMinor: order.totalMinor,
+      couponCode: order.couponCode,
+      shippingAddress: order.shippingAddress,
+      shippingMethod: order.shippingMethod,
+      paymentMethod: order.paymentMethod,
+      provider: order.provider,
+      paymentStatus: order.paymentStatus,
+      fulfilmentStatus: order.fulfilmentStatus,
+      placedAt: order.placedAt,
+    };
     return {
-      order,
-      items,
-      shipments,
-      refunds,
-      returnRequests,
+      order: {
+        ...customerOrder,
+        customerName: isAdmin ? order.customerName : undefined,
+        guestEmail: isAdmin ? order.guestEmail : undefined,
+        notes: isAdmin ? order.notes : undefined,
+        baseCurrency: isAdmin ? order.baseCurrency : order.currency,
+        costTotalMinor: isAdmin ? order.costTotalMinor : undefined,
+      },
+      items: items.map((item) => ({
+        _id: item._id,
+        productId: item.productId,
+        name: item.name,
+        sku: item.sku,
+        variantSku: item.variantSku,
+        variantName: item.variantName,
+        image: item.image,
+        unitPriceMinor: item.unitPriceMinor,
+        quantity: item.quantity,
+        lineTotalMinor: item.lineTotalMinor,
+        fulfilmentStatus: item.fulfilmentStatus,
+        supplierSku: isAdmin ? item.supplierSku : undefined,
+        unitCostMinor: isAdmin ? item.unitCostMinor : undefined,
+      })),
+      shipments: isAdmin ? shipments : shipments.map(customerShipment),
+      refunds: refunds.map((refund) => ({
+        _id: refund._id,
+        amountMinor: refund.amountMinor,
+        currency: refund.currency,
+        reason: isAdmin ? refund.reason : undefined,
+        status: refund.status,
+        providerRefundId: isAdmin ? refund.providerRefundId : undefined,
+      })),
+      returnRequests: returnRequests.map((request) => ({
+        _id: request._id,
+        type: request.type,
+        reason: request.reason,
+        status: request.status,
+      })),
       fulfilment: supplierOrders.map((entry, index) => ({
         supplierId: entry.supplierId,
         supplierName: suppliers[index]?.name ?? "Unknown supplier",
@@ -127,7 +182,17 @@ export const myOrders = query({
           ? order.orderNumber.toLowerCase().includes(search) ||
             order.customerName.toLowerCase().includes(search)
           : true,
-      );
+      )
+      .map((order) => ({
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        placedAt: order.placedAt,
+        shippingMethod: { label: order.shippingMethod.label },
+        fulfilmentStatus: order.fulfilmentStatus,
+        paymentStatus: order.paymentStatus,
+        currency: order.currency,
+        totalMinor: order.totalMinor,
+      }));
   },
 });
 
@@ -138,14 +203,13 @@ export const lookupGuestOrder = query({
       .query("orders")
       .withIndex("by_number", (q) => q.eq("orderNumber", args.orderNumber.trim().toUpperCase()))
       .unique();
-    if (!order) return null;
+    if (!order || order.userId) return null;
     const expected = (order.shippingAddress.email ?? order.guestEmail ?? "").toLowerCase();
     if (!isEmailish(args.email) || expected !== args.email.trim().toLowerCase()) {
       // Never reveal whether the order number exists.
       return null;
     }
     return {
-      orderId: order._id,
       orderNumber: order.orderNumber,
       fulfilmentStatus: order.fulfilmentStatus,
       paymentStatus: order.paymentStatus,
@@ -214,9 +278,15 @@ export const cancelOrder = mutation({
 
     // A paid order needs a refund, which a human must approve.
     if (order.paymentStatus === "paid" || order.paymentStatus === "partially_refunded") {
-      await ctx.db.insert("refunds", {
+      const refunds = await ctx.db.query("refunds").withIndex("by_order", (q) =>
+        q.eq("orderId", order._id),
+      ).collect();
+      const remaining = order.totalMinor - refunds
+        .filter((refund) => !["failed", "rejected"].includes(refund.status))
+        .reduce((sum, refund) => sum + refund.amountMinor, 0);
+      if (remaining > 0) await ctx.db.insert("refunds", {
         orderId: order._id,
-        amountMinor: order.totalMinor,
+        amountMinor: remaining,
         currency: order.currency,
         reason: args.reason ? `Order cancelled: ${args.reason}` : "Order cancelled",
         status: "requested",
@@ -224,7 +294,6 @@ export const cancelOrder = mutation({
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(order._id, { paymentStatus: "partially_refunded" });
     }
 
     await notifyAdmins(ctx, {
@@ -252,28 +321,15 @@ export const requestReturn = mutation({
     type: v.union(v.literal("return"), v.literal("refund"), v.literal("exchange")),
     reason: v.string(),
     description: v.optional(v.string()),
-    email: v.optional(v.string()),
+    guestToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getUser(ctx);
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Order not found.");
-    const isOwner = order.userId && user?._id === order.userId;
-    const isGuestMatch =
-      !order.userId &&
-      args.email &&
-      (order.shippingAddress.email ?? order.guestEmail ?? "").toLowerCase() ===
-        args.email.trim().toLowerCase();
-    if (!isOwner && !isGuestMatch && user?.role !== "admin") {
-      throw new Error("You cannot request a return for this order.");
-    }
-    if (order.fulfilmentStatus !== "delivered" && order.fulfilmentStatus !== "shipped") {
-      throw new Error(
-        "Returns can only be requested once an order has been shipped or delivered.",
-      );
-    }
-    if (args.reason.trim().length < 3) {
-      throw new Error("Please choose or describe a return reason.");
+    if (!canViewOrder(order, user, args.guestToken)) throw new Error("Order not found.");
+    if (args.reason.trim().length < 3 || args.reason.length > 254 || (args.description?.length ?? 0) > 2000) {
+      throw new Error("Describe the issue in the available space.");
     }
 
     const items = await ctx.db
@@ -291,7 +347,7 @@ export const requestReturn = mutation({
     const requestId = await ctx.db.insert("return_requests", {
       orderId: order._id,
       userId: order.userId,
-      email: (order.shippingAddress.email ?? order.guestEmail ?? args.email ?? "").toLowerCase(),
+      email: (order.shippingAddress.email ?? order.guestEmail ?? "").toLowerCase(),
       type: args.type,
       orderItemIds: validIds,
       reason: args.reason,
@@ -299,9 +355,6 @@ export const requestReturn = mutation({
       status: "requested",
       createdAt: now,
     });
-    for (const itemId of validIds) {
-      await ctx.db.patch(itemId, { fulfilmentStatus: "returned" });
-    }
     await notifyAdmins(ctx, {
       type: "return_request",
       title: `Return requested · ${order.orderNumber}`,
@@ -343,10 +396,11 @@ export const listMyReturns = query({
 });
 
 export const getTracking = query({
-  args: { orderId: v.id("orders"), email: v.optional(v.string()) },
+  args: { orderId: v.id("orders"), guestToken: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const order = await loadOrderForViewer(ctx, args);
-    if (!order) return null;
+    const order = await ctx.db.get(args.orderId);
+    const user = await getUser(ctx);
+    if (!order || !canViewOrder(order, user, args.guestToken)) return null;
     const shipments = await ctx.db
       .query("shipments")
       .withIndex("by_order", (q) => q.eq("orderId", order._id))
@@ -362,7 +416,7 @@ export const getTracking = query({
       shippingAddress: order.shippingAddress,
       placedAt: order.placedAt,
       estimatedDelivery: order.placedAt + order.shippingMethod.etaDays * 86400000,
-      shipments,
+      shipments: user?.role === "admin" ? shipments : shipments.map(customerShipment),
       items: items.map((item) => ({
         name: item.name,
         quantity: item.quantity,

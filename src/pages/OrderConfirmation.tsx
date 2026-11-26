@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { CheckCircle2, Clock, PackageCheck, Truck } from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -11,18 +11,18 @@ import {
   StatusPill,
 } from "@/components/knokh/ui";
 import { Button } from "@/components/ui/button";
-import { formatDateTime, titleCase } from "@/lib/format";
+import { deliveryDateRange } from "@/lib/delivery";
+import { readGuestOrderToken } from "@/lib/guestOrders";
+import { formatDateTime, formatMoney, titleCase } from "@/lib/format";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
 
 export default function OrderConfirmation() {
   const { orderId = "" } = useParams();
-  const [searchParams] = useSearchParams();
-  const email = searchParams.get("email") ?? undefined;
-  const { config, moneyLocal } = useStore();
+  const { config } = useStore();
   const detail = useQuery(
     api.orders.getOrderDetail,
-    orderId ? { orderId: orderId as Id<"orders">, email } : "skip",
+    orderId ? { orderId: orderId as Id<"orders">, guestToken: readGuestOrderToken(orderId) } : "skip",
   );
 
   usePageMeta({
@@ -61,10 +61,21 @@ export default function OrderConfirmation() {
     );
   }
 
-  const { order, items, shipments, fulfilment } = detail;
+  const { order, items, shipments } = detail;
+  const moneyLocal = (amount: number) => formatMoney(
+    amount, config?.currencies.find((entry) => entry.code === order.currency), order.currency,
+  );
   const paid = order.paymentStatus === "paid";
   const codPending = order.paymentStatus === "cod_pending";
-  const awaitingPayment = order.paymentMethod === "online" && !paid;
+  const refunded = order.paymentStatus === "refunded" || order.paymentStatus === "partially_refunded";
+  const cancelled = order.fulfilmentStatus === "cancelled";
+  const awaitingPayment = order.paymentMethod === "online" && !paid && !refunded && !cancelled;
+  let confirmation = "Order received";
+  if (cancelled) confirmation = "Order cancelled";
+  else if (refunded) confirmation = titleCase(order.paymentStatus);
+  else if (paid) confirmation = "Payment confirmed";
+  else if (codPending) confirmation = "Cash on delivery order confirmed";
+  else if (awaitingPayment) confirmation = "Order received, payment pending";
 
   return (
     <Container className="max-w-4xl py-10">
@@ -73,11 +84,7 @@ export default function OrderConfirmation() {
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold text-primary">
               {paid || codPending ? <CheckCircle2 className="size-4" /> : <Clock className="size-4" />}
-              {paid
-                ? "Payment confirmed"
-                : codPending
-                  ? "Cash on delivery order confirmed"
-                  : "Order received — payment pending"}
+              {confirmation}
             </p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight">{order.orderNumber}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -95,7 +102,8 @@ export default function OrderConfirmation() {
           <InfoNote tone="warning" className="mt-5">
             We have not received a verified payment confirmation for this order yet. No items
             will be dispatched until the gateway confirms the payment. If you completed the
-            payment, this page updates as soon as the signed confirmation arrives.
+            payment, this page updates as soon as the signed confirmation arrives.{" "}
+            <Link className="underline" to={`/checkout/return?orderId=${orderId}`}>View payment status</Link>.
           </InfoNote>
         ) : null}
 
@@ -105,7 +113,10 @@ export default function OrderConfirmation() {
               <Truck className="size-4 text-primary" /> Delivery
             </p>
             <p className="mt-1 text-muted-foreground">
-              {order.shippingMethod.label} · about {order.shippingMethod.etaDays} days
+              {order.shippingMethod.label}
+              {order.shippingMethod.estimatedFrom && order.shippingMethod.estimatedTo
+                ? ` · Estimated ${deliveryDateRange(order.shippingMethod.estimatedFrom, order.shippingMethod.estimatedTo)}`
+                : ""}
             </p>
             <p className="mt-1 text-muted-foreground">
               {order.shippingAddress.city}, {order.shippingAddress.state}{" "}
@@ -117,14 +128,7 @@ export default function OrderConfirmation() {
               <PackageCheck className="size-4 text-primary" /> Fulfilment
             </p>
             <p className="mt-1 text-muted-foreground">{titleCase(order.fulfilmentStatus)}</p>
-            <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-              {fulfilment.map((entry) => (
-                <li key={String(entry.supplierId)}>
-                  {entry.supplierName}: {titleCase(entry.status)}
-                </li>
-              ))}
-              {fulfilment.length === 0 ? <li>Not yet forwarded</li> : null}
-            </ul>
+
           </div>
           <div className="rounded-lg border border-border p-4 text-sm">
             <p className="font-semibold">Payment</p>

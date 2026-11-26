@@ -371,6 +371,8 @@ const schema = defineSchema(
       costTotalMinor: v.number(),
       couponCode: v.optional(v.string()),
       cartOwnerKey: v.string(),
+      checkoutRequestId: v.optional(v.string()),
+      guestAccessExpiresAt: v.optional(v.number()),
       shippingAddress: addressSnapshotValidator,
       billingAddress: v.optional(addressSnapshotValidator),
       shippingMethod: v.object({
@@ -378,6 +380,8 @@ const schema = defineSchema(
         label: v.string(),
         etaDays: v.number(),
         rateMinor: v.number(),
+        estimatedFrom: v.optional(v.string()),
+        estimatedTo: v.optional(v.string()),
       }),
       paymentMethod: v.union(
         v.literal("online"),
@@ -393,6 +397,8 @@ const schema = defineSchema(
       cancelledAt: v.optional(v.number()),
       cancelReason: v.optional(v.string()),
     })
+      .index("by_checkout_owner_time", ["cartOwnerKey", "placedAt"])
+      .index("by_checkout_request", ["cartOwnerKey", "checkoutRequestId"])
       .index("by_number", ["orderNumber"])
       .index("by_user", ["userId", "placedAt"])
       .index("by_status", ["fulfilmentStatus", "placedAt"])
@@ -446,6 +452,7 @@ const schema = defineSchema(
       disputeRef: v.optional(v.string()),
       signatureVerified: v.optional(v.boolean()),
       gatewayResponseSummary: v.optional(v.string()),
+      sessionStartedAt: v.optional(v.number()),
       createdAt: v.number(),
       updatedAt: v.number(),
     })
@@ -490,7 +497,7 @@ const schema = defineSchema(
       notes: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
-    }).index("by_order", ["orderId"]),
+    }).index("by_order", ["orderId"]).index("by_gateway_refund", ["providerRefundId"]),
 
     shipments: defineTable({
       orderId: v.id("orders"),

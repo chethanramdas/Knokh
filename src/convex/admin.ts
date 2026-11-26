@@ -1078,6 +1078,14 @@ export const updateOrderStatus = mutation({
     const admin = await requireAdmin(ctx);
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Order not found.");
+    if (order.paymentMethod === "online" && args.paymentStatus && args.paymentStatus !== order.paymentStatus) {
+      throw new Error("Online payment status is confirmed by the payment provider.");
+    }
+    if (order.paymentMethod === "online" && args.fulfilmentStatus &&
+        ["processing", "forwarded", "shipped", "delivered"].includes(args.fulfilmentStatus) &&
+        !["paid", "partially_refunded"].includes(order.paymentStatus)) {
+      throw new Error("Online payment capture must be confirmed before fulfilment.");
+    }
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
     if (args.fulfilmentStatus) patch.fulfilmentStatus = args.fulfilmentStatus;
     if (args.paymentStatus) patch.paymentStatus = args.paymentStatus;
@@ -1109,7 +1117,7 @@ export const updateOrderStatus = mutation({
       action: "order.status_update",
       entity: "orders",
       entityId: String(order._id),
-      summary: `Order ${order.orderNumber} → ${JSON.stringify(patch)}`,
+      summary: `Order ${order.orderNumber} status updated`,
     });
     return { ok: true };
   },
@@ -1138,6 +1146,12 @@ export const addShipment = mutation({
     const admin = await requireAdmin(ctx);
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Order not found.");
+    if (order.paymentMethod === "online" && !["paid", "partially_refunded"].includes(order.paymentStatus)) {
+      throw new Error("Online payment capture must be confirmed before shipping.");
+    }
+    if (args.trackingUrl && !/^https:\/\/[^\s]+$/i.test(args.trackingUrl)) {
+      throw new Error("Enter an HTTPS tracking URL.");
+    }
     const now = Date.now();
     const status = args.status ?? "label_created";
     const existing = await ctx.db
@@ -1232,8 +1246,12 @@ export const createRefund = mutation({
     const admin = await requireAdmin(ctx);
     const order = await ctx.db.get(args.orderId);
     if (!order) throw new Error("Order not found.");
-    if (args.amountMinor <= 0 || args.amountMinor > order.totalMinor) {
+    if (!Number.isSafeInteger(args.amountMinor) || args.amountMinor <= 0 || args.amountMinor > order.totalMinor) {
       throw new Error("Refund amount must be between 0 and the order total.");
+    }
+    if (order.provider === "razorpay" &&
+        (args.providerRefundId || (args.status && !["requested", "approved"].includes(args.status)))) {
+      throw new Error("Start with a requested or approved Razorpay refund.");
     }
     const now = Date.now();
     const refundId = await ctx.db.insert("refunds", {
@@ -1278,21 +1296,30 @@ export const setRefundStatus = mutation({
     const admin = await requireAdmin(ctx);
     const refund = await ctx.db.get(args.refundId);
     if (!refund) throw new Error("Refund not found.");
+    const order = await ctx.db.get(refund.orderId);
+    if (!order) throw new Error("Order not found.");
+    if (order.provider === "razorpay" &&
+        (refund.status === "processing" || refund.status === "completed" || args.providerRefundId ||
+          !["requested", "approved", "rejected"].includes(args.status))) {
+      throw new Error("Razorpay must verify processing and completion.");
+    }
     await ctx.db.patch(refund._id, {
       status: args.status,
       providerRefundId: args.providerRefundId ?? refund.providerRefundId,
       notes: args.notes ?? refund.notes,
       updatedAt: Date.now(),
     });
-    const order = await ctx.db.get(refund.orderId);
-    if (order && args.status === "completed") {
+    if (args.status === "completed") {
       const refunds = await ctx.db
         .query("refunds")
         .withIndex("by_order", (q) => q.eq("orderId", order._id))
-        .take(50);
+        .collect();
       const completed = refunds
         .filter((entry) => entry.status === "completed")
         .reduce((sum, entry) => sum + entry.amountMinor, 0);
+      if (!Number.isSafeInteger(completed) || completed > order.totalMinor) {
+        throw new Error("Combined refunds exceed the order total.");
+      }
       await ctx.db.patch(order._id, {
         paymentStatus: completed >= order.totalMinor ? "refunded" : "partially_refunded",
         updatedAt: Date.now(),
