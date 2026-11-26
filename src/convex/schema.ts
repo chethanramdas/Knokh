@@ -863,6 +863,7 @@ const schema = defineSchema(
       createdAt: v.number(),
     })
       .index("by_status", ["status", "createdAt"])
+      .index("by_user", ["userId", "createdAt"])
       .index("by_email", ["email", "createdAt"]),
 
     audit_logs: defineTable({

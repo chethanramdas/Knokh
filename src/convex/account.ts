@@ -225,6 +225,10 @@ export const toggleWishlist = mutation({
   args: { productId: v.id("products") },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
+    const product = await ctx.db.get(args.productId);
+    if (!product || !["published", "unavailable"].includes(product.status)) {
+      throw new Error("That product is not available.");
+    }
     const wishlistId = await normalizeWishlistId(ctx, user._id);
     const existing = await ctx.db
       .query("wishlist_items")
@@ -258,7 +262,7 @@ export const getWishlist = query({
     const products = [];
     for (const item of items) {
       const product = await ctx.db.get(item.productId);
-      if (!product || product.status === "archived") continue;
+      if (!product || !["published", "unavailable"].includes(product.status)) continue;
       products.push({
         _id: product._id,
         name: product.name,
@@ -414,10 +418,10 @@ export const myTickets = query({
   args: {},
   handler: async (ctx) => {
     const user = await getUser(ctx);
-    if (!user?.email) return [];
+    if (!user) return [];
     return await ctx.db
       .query("support_tickets")
-      .withIndex("by_email", (q) => q.eq("email", user.email!))
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
       .order("desc")
       .take(20);
   },
