@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import { getUser, notifyAdmins, notifyUser, writeAuditLog } from "./lib/auth";
+import { getUser, notifyAdmins, notifyUser } from "./lib/auth";
 import { queueFulfilmentForOrder } from "./lib/fulfilment";
 import {
   envValue,
@@ -202,7 +202,7 @@ export const processWebhookEvent = internalMutation({
 
     const order = payment ? await ctx.db.get(payment.orderId) : null;
 
-    const eventId = await ctx.db.insert("payment_events", {
+    const eventId = existing?._id ?? await ctx.db.insert("payment_events", {
       provider: args.provider,
       eventId: parsed.eventId,
       eventType: parsed.eventType,
@@ -231,6 +231,10 @@ export const processWebhookEvent = internalMutation({
     )) {
       await ctx.db.patch(eventId, { processingError: "Capture amount, currency or payment ID mismatch." });
       return { ok: false, duplicate: false, reason: "Capture details do not match the order." };
+    }
+    if (["captured", "refunded", "partially_refunded"].includes(payment.status) && ["authorized", "failed"].includes(parsed.status)) {
+      await ctx.db.patch(eventId, { processed: true, processedAt: Date.now() });
+      return { ok: true, duplicate: false, status: parsed.status };
     }
     const now = Date.now();
     switch (parsed.status) {
