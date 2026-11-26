@@ -263,7 +263,8 @@ export const placeOrder = mutation({
     const addressErrors = validateAddress(args.shippingAddress);
     if (addressErrors.length > 0) throw new Error(addressErrors.join(" "));
 
-    const countryCode = args.shippingAddress.countryCode.toUpperCase();
+    const countryCode = args.shippingAddress.countryCode.trim().toUpperCase();
+    if (countryCode !== "IN") throw new Error("KNOKH currently ships within India only.");
     const currency = args.currency || cart.currency;
     const priced = await buildPricedCart(ctx, {
       items,
