@@ -27,8 +27,7 @@ export type WebhookOutcome = {
 
 /**
  * Marks an order paid and starts fulfilment. Kept separate from the webhook
- * bookkeeping so it can also be reached from the (signature-verified) checkout
- * callback.
+ * bookkeeping. Browser callbacks never establish capture.
  */
 async function applyPaidOrder(
   ctx: MutationCtx,
@@ -215,7 +214,7 @@ export const processWebhookEvent = internalMutation({
       receivedAt: Date.now(),
     });
 
-    if (!payment || !order) {
+    if (!payment || !order || payment.provider !== args.provider) {
       await ctx.db.patch(eventId, {
         processed: true,
         processedAt: Date.now(),
@@ -225,6 +224,14 @@ export const processWebhookEvent = internalMutation({
       return { ok: true, duplicate: false, status: parsed.status };
     }
 
+    if (parsed.status === "captured" && (
+      !parsed.providerPaymentId ||
+      parsed.amountMinor !== payment.amountMinor ||
+      parsed.currency !== payment.currency
+    )) {
+      await ctx.db.patch(eventId, { processingError: "Capture amount, currency or payment ID mismatch." });
+      return { ok: false, duplicate: false, reason: "Capture details do not match the order." };
+    }
     const now = Date.now();
     switch (parsed.status) {
       case "captured":
@@ -337,7 +344,7 @@ export const confirmCheckoutResult = mutation({
         q.eq("providerOrderId", args.providerOrderId),
       )
       .unique();
-    if (!payment || payment.orderId !== order._id) {
+    if (!payment || payment.orderId !== order._id || payment.provider !== "razorpay") {
       throw new Error("That payment does not belong to this order.");
     }
 
@@ -367,18 +374,8 @@ export const confirmCheckoutResult = mutation({
       throw new Error("Payment verification failed. We did not mark this order as paid.");
     }
 
-    await applyPaidOrder(ctx, {
-      order,
-      payment,
-      providerPaymentId: args.providerPaymentId,
-    });
-    await writeAuditLog(ctx, {
-      actorId: user?._id,
-      action: "payment.confirm",
-      entity: "payments",
-      entityId: String(payment._id),
-      summary: `Payment confirmed for ${order.orderNumber}`,
-    });
+    // A valid checkout signature authenticates the IDs, not capture.
+    // Only a verified capture webhook can mark this order paid.
     return { ok: true, orderNumber: order.orderNumber };
   },
 });
