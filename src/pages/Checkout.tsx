@@ -231,7 +231,7 @@ export default function Checkout() {
                 providerPaymentId: response.razorpay_payment_id,
                 signature: response.razorpay_signature,
               });
-              navigate(`/order/${result.orderId}?email=${encodeURIComponent(form.email)}`);
+              navigate(`/checkout/return?orderId=${result.orderId}`);
             } catch (verificationError) {
               toast.error(
                 verificationError instanceof Error
