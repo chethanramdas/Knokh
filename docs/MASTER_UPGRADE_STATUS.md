@@ -116,3 +116,9 @@ Local verification: OSV scanned 466 packages; zero unreviewed findings, two expl
 - Support-ticket queries now use the authenticated user ID and an additive `by_user` index. Matching an email address no longer grants access. Historical guest tickets without an owner remain available to authorized staff; they are not automatically attached to a customer by email. No tickets are deleted.
 - Wishlists reject draft/archived product additions and hide previously saved products that are no longer public. Published and publicly unavailable products retain their existing behavior.
 - Two Convex integration regressions verify cross-account isolation even with the same email, anonymous ticket denial, draft visibility denial, and restored published visibility. All 121 tests pass locally. Deploy the additive Convex index/backend before releasing the frontend; authenticated backend deployment remains blocked.
+
+## Delivery calendar validation — 27 November 2026
+
+Reject impossible holiday dates (including non-leap 29 February), non-finite clocks and dates too close to the JavaScript calendar limit. Preserve India timezone calculations and configured working-day rules. Eleven regressions cover these cases; all 132 tests pass locally. No transit times or courier coverage were invented.
+
+Session recovery: dashboard and CLI login succeeded in the prior session. The restarted executor no longer has `/home/agent/.convex/accounts/knokh-upgrade.json`; a fresh read-only request reports MissingAccessToken. The former preview deployment is unavailable. Backend deployment and integration tests therefore remain blocked. Existing production approval is recorded, but the technical release gates have not passed.
