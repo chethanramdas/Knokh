@@ -372,8 +372,7 @@ export const createSupportTicket = mutation({
     message: v.string(),
     topic: v.string(),
     orderNumber: v.optional(v.string()),
-    // Simple spam control: the client sends the elapsed milliseconds since the
-    // form was rendered. Bots submit instantly.
+    // Optional UI spam signals; backend limits below also apply to direct calls.
     elapsedMs: v.number(),
     honeypot: v.optional(v.string()),
   },
@@ -391,6 +390,22 @@ export const createSupportTicket = mutation({
     if (args.subject.trim().length < 3) throw new Error("Add a short subject.");
     if (args.message.trim().length < 10) {
       throw new Error("Please describe your question in at least 10 characters.");
+    }
+    const email = args.email.trim().toLowerCase();
+    if (email.length > 254 || args.name.length > 120 || args.subject.length > 160 ||
+        args.message.length > 4000 || args.topic.length > 60 ||
+        (args.orderNumber?.length ?? 0) > 40 || !Number.isFinite(args.elapsedMs)) {
+      throw new Error("One or more support fields exceed the allowed limits.");
+    }
+    const since = Date.now() - 60 * 60 * 1000;
+    const recentEmail = await ctx.db.query("support_tickets")
+      .withIndex("by_email", (q) => q.eq("email", email).gte("createdAt", since))
+      .take(5);
+    const recentAccount = user ? await ctx.db.query("support_tickets")
+      .withIndex("by_user", (q) => q.eq("userId", user._id).gte("createdAt", since))
+      .take(5) : [];
+    if (recentEmail.length >= 5 || recentAccount.length >= 5) {
+      throw new Error("Too many support requests. Please wait before submitting another request.");
     }
     const ticketId = await ctx.db.insert("support_tickets", {
       name: args.name.trim().slice(0, 120),

@@ -122,3 +122,9 @@ Local verification: OSV scanned 466 packages; zero unreviewed findings, two expl
 Reject impossible holiday dates (including non-leap 29 February), non-finite clocks and dates too close to the JavaScript calendar limit. Preserve India timezone calculations and configured working-day rules. Eleven regressions cover these cases; all 132 tests pass locally. No transit times or courier coverage were invented.
 
 Session recovery: dashboard and CLI login succeeded in the prior session. The restarted executor no longer has `/home/agent/.convex/accounts/knokh-upgrade.json`; a fresh read-only request reports MissingAccessToken. The former preview deployment is unavailable. Backend deployment and integration tests therefore remain blocked. Existing production approval is recorded, but the technical release gates have not passed.
+
+## Support submission abuse controls
+
+The support mutation now limits stored requests to five per rolling hour for each normalized email and authenticated user. Both indexed reads and ticket insertion occur in one Convex transaction, so rejected submissions do not create tickets or admin notifications. Direct callers cannot evade the account limit by changing email. Strict field sizes and finite timer checks reject oversized input before writes. Browser timer/honeypot fields remain supplemental signals only. This does not replace Turnstile or stop distributed anonymous abuse using many addresses; those controls remain pending.
+
+Six regressions cover email normalization, account limits across addresses, invalid/oversized requests, absence of writes on rejection and window expiry. Latest local total: 138 tests passing. Production release remains pending backend deployment and integration verification.
