@@ -1,0 +1,29 @@
+name: Security scans
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned official security scanners
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.0
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.0
+      - name: Scan repository history without disclosing secrets
+        run: '"$(go env GOPATH)/bin/gitleaks" git --redact --no-banner --log-level error .'
+      - name: Scan dependency lockfile
+        if: always()
+        run: 'node scripts/osv-policy.mjs "$(go env GOPATH)/bin/osv-scanner"'

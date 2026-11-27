@@ -1,3 +1,4 @@
+import { checkoutProviderEnabled } from "./lib/paymentMode";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
@@ -48,8 +49,6 @@ type SerializedProduct = {
   shipsTo: string[];
   hasVariants: boolean;
   variantCount: number;
-  supplierId?: Id<"suppliers">;
-  sourceUrl?: string;
   updatedAt: number;
 };
 
@@ -87,8 +86,6 @@ function serializeProduct(product: Doc<"products">): SerializedProduct {
     shipsTo: product.shipsTo ?? [],
     hasVariants: variants.length > 0,
     variantCount: variants.length,
-    supplierId: product.supplierId,
-    sourceUrl: product.sourceUrl,
     updatedAt: product.updatedAt,
   };
 }
@@ -104,12 +101,12 @@ export const getStoreConfig = query({
     const providers = settings.payments.providers.map((provider) => ({
       id: provider.id,
       label: provider.label,
-      enabled: provider.enabled,
-      status: providerRuntimeStatus(provider.envVars),
+      enabled: checkoutProviderEnabled(provider.id, settings),
+      status: checkoutProviderEnabled(provider.id, settings) ? "configured" : "pending_credentials",
       countries: provider.countries,
       currencies: provider.currencies,
       docsUrl: provider.docsUrl,
-      missingEnvVars: provider.envVars,
+      missingEnvVars: [],
     }));
     return {
       brand: settings.brand,
@@ -121,7 +118,7 @@ export const getStoreConfig = query({
         defaultMarkupPercent: settings.pricing.defaultMarkupPercent,
       },
       currencies: settings.currencies,
-      shippingZones: settings.shippingZones,
+      shippingZones: settings.shippingZones.filter((zone) => zone.countryCode === "IN"),
       taxRules: settings.taxRules,
       homepage: settings.homepage
         .filter((section) => section.enabled)
@@ -129,7 +126,7 @@ export const getStoreConfig = query({
       payments: {
         providers,
         codEnabled: settings.commerce.codEnabled,
-        testGatewayEnabled: settings.payments.testGatewayEnabled,
+        testGatewayEnabled: false,
       },
       viewer: {
         isSignedIn: user !== null,
@@ -531,13 +528,12 @@ export const getProductBySlug = query({
       .query("products")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
-    if (!product || product.status === "archived") return null;
+    if (!product || !["published", "unavailable"].includes(product.status)) return null;
 
-    const [category, subcategory, brandPojo, supplier] = await Promise.all([
+    const [category, subcategory, brandPojo] = await Promise.all([
       product.categoryId ? ctx.db.get(product.categoryId) : null,
       product.subcategoryId ? ctx.db.get(product.subcategoryId) : null,
       product.brandId ? ctx.db.get(product.brandId) : null,
-      product.supplierId ? ctx.db.get(product.supplierId) : null,
     ]);
 
     const reviews = await ctx.db
@@ -561,8 +557,6 @@ export const getProductBySlug = query({
         tags: product.tags ?? [],
         seoTitle: product.seoTitle,
         seoDescription: product.seoDescription,
-        supplierSku: product.supplierSku,
-        supplierName: supplier?.name,
         views: product.views ?? 0,
       },
       category: category

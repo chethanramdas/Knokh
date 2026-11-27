@@ -151,7 +151,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     domain: "",
   },
   contact: {
-    supportEmail: "support@example.com",
+    supportEmail: "support@knokh.com",
     salesEmail: "sales@example.com",
     phone: "",
     addressLines: [],
@@ -239,7 +239,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
      * verification → fulfilment pipeline so the platform can be tested without
      * merchant approval. It must be disabled for a live store.
      */
-    testGatewayEnabled: true,
+    testGatewayEnabled: false,
     testGatewayWebhookSecretEnvVar: "TEST_GATEWAY_WEBHOOK_SECRET",
   },
   currencies: [

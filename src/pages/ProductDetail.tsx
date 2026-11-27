@@ -1,3 +1,4 @@
+import { deliveryDateRange } from "@/lib/delivery";
 import { useMutation, useQuery } from "convex/react";
 import {
   Check,
@@ -42,7 +43,7 @@ export default function ProductDetail() {
 }
 
 function ProductDetailContent({ slug }: { slug: string }) {
-  const { guestKey, money, isWishlisted, toggleWishlist, zone, config, country, currency } =
+  const { guestKey, money, isWishlisted, toggleWishlist, config, currency } =
     useStore();
   const result = useQuery(api.catalog.getProductBySlug, { slug });
   const recordView = useMutation(api.catalog.recordProductView);
@@ -50,6 +51,9 @@ function ProductDetailContent({ slug }: { slug: string }) {
   const submitReview = useMutation(api.orders.submitReview);
   const { isAuthenticated } = useAuth();
 
+  const [pin, setPin] = useState("");
+  const validPin = /^[1-9][0-9]{5}$/.test(pin);
+  const estimate = useQuery(api.checkout.estimateDelivery, validPin ? { pin } : "skip");
   const [chosenVariantSku, setVariantSku] = useState<string | undefined>(undefined);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
@@ -150,7 +154,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
   const unitPriceMinor = selectedVariant?.priceMinor ?? product.priceMinor;
   const unitCompareAtMinor = selectedVariant?.compareAtMinor ?? product.compareAtMinor;
   const inStock = availableStock > 0 && product.status === "published";
-  const shipsHere = product.shipsTo.length === 0 || product.shipsTo.includes(country);
+  const shipsHere = product.shipsTo.length === 0 || product.shipsTo.includes("IN");
   const wished = isWishlisted(String(product._id));
 
   const handleAdd = async () => {
@@ -307,10 +311,10 @@ function ProductDetailContent({ slug }: { slug: string }) {
               compareAtMinor={unitCompareAtMinor}
               size="lg"
             />
-            {config?.taxRules.find((rule) => rule.countryCode === country)?.inclusive ? (
+            {config?.taxRules.find((rule) => rule.countryCode === "IN")?.inclusive ? (
               <p className="mt-1 text-xs text-muted-foreground">
                 Inclusive of{" "}
-                {config?.taxRules.find((rule) => rule.countryCode === country)?.label}.
+                {config?.taxRules.find((rule) => rule.countryCode === "IN")?.label}.
               </p>
             ) : (
               <p className="mt-1 text-xs text-muted-foreground">
@@ -380,8 +384,7 @@ function ProductDetailContent({ slug }: { slug: string }) {
             </div>
             {!shipsHere ? (
               <InfoNote tone="warning" className="mt-4">
-                This product is currently not shipped to {country}. Choose a different
-                destination country in the header or contact support.
+                This product is unavailable for delivery in India.
               </InfoNote>
             ) : null}
             {availableStock > 0 && availableStock <= 5 ? (
@@ -396,13 +399,16 @@ function ProductDetailContent({ slug }: { slug: string }) {
               <p className="flex items-center gap-2 font-semibold">
                 <Truck className="size-4 text-primary" /> Delivery estimate
               </p>
-              <p className="mt-1 text-muted-foreground">
-                {zone
-                  ? `${Math.max(product.deliveryEstimateDays, zone.etaDays)} days to ${zone.country}`
-                  : `${product.deliveryEstimateDays} days`}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Duties and taxes are not prepaid unless stated at checkout.
+              <label className="mt-2 block text-xs" htmlFor="delivery-pin">Indian PIN code</label>
+              <input id="delivery-pin" className="mt-1 w-full rounded border border-border bg-background p-2"
+                inputMode="numeric" autoComplete="postal-code" maxLength={6}
+                value={pin} onChange={(event) => setPin(event.target.value)} />
+              <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
+                {!shipsHere ? "Delivery unavailable for this item."
+                  : estimate?.status === "available" ? `Estimated ${deliveryDateRange(estimate.earliest, estimate.latest)}`
+                    : estimate?.status === "unsupported" ? "Delivery is unavailable for this PIN code."
+                      : estimate?.status === "unconfigured" ? "Delivery estimates are temporarily unavailable."
+                        : validPin ? "Checking delivery…" : "Enter a valid 6-digit PIN code."}
               </p>
             </div>
             <div className="rounded-xl border border-border p-4 text-sm">
@@ -410,8 +416,8 @@ function ProductDetailContent({ slug }: { slug: string }) {
                 <RotateCcw className="size-4 text-primary" /> Returns
               </p>
               <p className="mt-1 text-muted-foreground">
-                Return requests can be raised from your order page once the parcel is
-                shipped.
+                Change-of-mind returns and refunds are unavailable. Your legal rights still apply.{" "}
+                <Link className="underline" to="/info/returns-refunds">Read the policy</Link>.
               </p>
               <Link to="/info/returns-refunds" className="mt-1 inline-block text-xs text-primary">
                 Read the returns policy
@@ -532,13 +538,11 @@ function ProductDetailContent({ slug }: { slug: string }) {
             <p className="font-semibold">Shipping & returns</p>
             <ul className="mt-2 space-y-2 text-muted-foreground">
               <li>
-                Delivery estimate: {product.deliveryEstimateDays} days dispatch, plus
-                transit time for your destination.
+                Enter your PIN code above for an estimated delivery range.
               </li>
               <li>Tracked delivery where the supplier provides tracking.</li>
               <li>
-                Return window and conditions are set out in the returns policy you can
-                read before ordering.
+                Report an issue with your order to customer support.
               </li>
             </ul>
             <Button asChild variant="outline" className="mt-3 w-full">

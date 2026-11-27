@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
@@ -6,12 +7,9 @@ import {
   CreditCard,
   Loader2,
   Lock,
-  ShieldCheck,
-  XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { toast } from "sonner";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -28,6 +26,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
+import { deliveryDateRange } from "@/lib/delivery";
+import { formatMoney } from "@/lib/format";
+import { keepGuestOrderToken, readGuestOrderToken } from "@/lib/guestOrders";
 import { usePageMeta } from "@/lib/seo";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -52,9 +53,7 @@ type RazorpayOptions = {
 declare global {
   interface Window {
     Razorpay?: new (options: RazorpayOptions) => { open: () => void };
-    Cashfree?: (options: { mode: string }) => {
-      checkout: (options: { paymentSessionId: string; redirectTarget: string }) => Promise<unknown>;
-    };
+
   }
 }
 
@@ -67,27 +66,29 @@ function loadScript(src: string): Promise<void> {
     const script = document.createElement("script");
     script.src = src;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Could not load ${src}`));
+    script.onerror = () => {
+      script.remove();
+      reject(new Error("Payment checkout could not load."));
+    };
     document.head.appendChild(script);
   });
 }
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const { guestKey, currency, country, config, moneyLocal, setCountry } = useStore();
+  const { guestKey, config } = useStore();
+  const moneyLocal = (amount: number) => formatMoney(amount, config?.currencies.find((entry) => entry.code === "INR"));
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const shippingMethodId = searchParams.get("ship") ?? "standard";
 
   const quote = useQuery(api.checkout.getCheckoutQuote, {
     guestKey: guestKey || undefined,
-    currency,
-    countryCode: country,
+    currency: "INR",
+    countryCode: "IN",
     shippingMethodId,
   });
   const placeOrder = useMutation(api.checkout.placeOrder);
-  const createSession = useAction(api.paymentsActions.createPaymentSession);
-  const confirmPayment = useMutation(api.payments.confirmCheckoutResult);
 
   const [form, setForm] = useState({
     name: user?.name ?? "",
@@ -100,23 +101,19 @@ export default function Checkout() {
     state: "",
     postalCode: "",
   });
-  const [paymentChoice, setPaymentChoice] = useState("test_gateway");
+  const [selectedPayment, setPaymentChoice] = useState("");
+  const paymentChoice = selectedPayment || quote?.paymentOptions.online[0]?.id ||
+    quote?.paymentOptions.cod?.id || "";
+  const pin = form.postalCode.trim();
+  const estimate = useQuery(api.checkout.estimateDelivery, /^[1-9][0-9]{5}$/.test(pin) ? { pin } : "skip");
+  const requestId = useRef<string | undefined>(undefined);
+  const submittingRequest = useRef(false);
   const [notes, setNotes] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   usePageMeta({ title: "Secure checkout", path: "/checkout", noIndex: true, siteUrl: config?.seo.siteUrl });
-
-  useEffect(() => {
-    if (!quote) return;
-    const options = quote.paymentOptions;
-    const firstOnline = options.online.find((provider) => provider.status === "configured");
-    if (firstOnline) setPaymentChoice(firstOnline.id);
-    else if (options.testGateway) setPaymentChoice("test_gateway");
-    else if (options.cod) setPaymentChoice("cod");
-    else setPaymentChoice("");
-  }, [quote?.paymentOptions.online.length, quote?.paymentOptions.testGateway, quote?.paymentOptions.cod]);
 
   if (!guestKey || quote === undefined) {
     return (
@@ -146,39 +143,28 @@ export default function Checkout() {
   const selectedShipping =
     quote.shippingOptions.find((option) => option.id === shippingMethodId) ??
     quote.shippingOptions[0];
-  const zoneCountry = config?.shippingZones.find((entry) => entry.countryCode === country);
-  const configuredOnline = quote.paymentOptions.online.filter(
-    (provider) => provider.status === "configured",
-  );
-  const pendingOnline = quote.paymentOptions.online.filter(
-    (provider) => provider.status !== "configured",
-  );
+  const configuredOnline = quote.paymentOptions.online;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submittingRequest.current) return;
+    submittingRequest.current = true;
     setError(null);
     setSubmitting(true);
+    let createdOrderId: string | undefined;
     try {
+      requestId.current ??= crypto.randomUUID();
       const useCod = paymentChoice === "cod";
       const result = await placeOrder({
+        requestId: requestId.current,
         guestKey,
-        currency,
         contact: {
-          name: form.name || form.fullName,
-          email: form.email,
-          phone: form.phone,
+          name: form.name || form.fullName, email: form.email, phone: form.phone,
         },
         shippingAddress: {
-          fullName: form.fullName || form.name,
-          phone: form.phone,
-          email: form.email,
-          line1: form.line1,
-          line2: form.line2 || undefined,
-          city: form.city,
-          state: form.state,
-          postalCode: form.postalCode,
-          countryCode: country,
-          country: zoneCountry?.country ?? country,
+          fullName: form.fullName || form.name, phone: form.phone, email: form.email,
+          line1: form.line1, line2: form.line2 || undefined, city: form.city, state: form.state,
+          postalCode: pin, countryCode: "IN", country: "India",
         },
         shippingMethodId: selectedShipping?.id ?? "standard",
         paymentMethod: useCod ? "cod" : "online",
@@ -186,103 +172,19 @@ export default function Checkout() {
         notes: notes || undefined,
         marketingConsent,
       });
-
+      createdOrderId = result.orderId;
+      if (result.guestToken) keepGuestOrderToken(result.orderId, result.guestToken);
       if (!result.requiresPayment) {
-        navigate(`/order/${result.orderId}?email=${encodeURIComponent(form.email)}`);
+        navigate(`/order/${result.orderId}`);
         return;
       }
-
-      // Provider handoff. Every provider path ends with a server-side
-      // verification step; a redirect alone never marks an order paid.
-      const session = await createSession({
-        orderId: result.orderId as Id<"orders">,
-        origin: window.location.origin,
-      });
-
-      if (session.provider === "test_gateway") {
-        navigate(`/checkout/sandbox/${result.orderId}`);
-        return;
-      }
-
-      if (session.provider === "razorpay") {
-        await loadScript("https://checkout.razorpay.com/v1/checkout.js");
-        if (!window.Razorpay) throw new Error("The Razorpay checkout script did not load.");
-        const payload = session.clientPayload as {
-          key: string;
-          razorpayOrderId: string;
-          amountMinor: number;
-          currency: string;
-          name: string;
-          description: string;
-        };
-        const checkout = new window.Razorpay({
-          key: payload.key,
-          amount: payload.amountMinor,
-          currency: payload.currency,
-          name: payload.name,
-          description: payload.description,
-          order_id: payload.razorpayOrderId,
-          prefill: { name: form.fullName, email: form.email, contact: form.phone },
-          handler: async (response) => {
-            try {
-              await confirmPayment({
-                orderId: result.orderId as Id<"orders">,
-                providerOrderId: response.razorpay_order_id,
-                providerPaymentId: response.razorpay_payment_id,
-                signature: response.razorpay_signature,
-              });
-              navigate(`/order/${result.orderId}?email=${encodeURIComponent(form.email)}`);
-            } catch (verificationError) {
-              toast.error(
-                verificationError instanceof Error
-                  ? verificationError.message
-                  : "Payment verification failed.",
-              );
-              navigate(`/checkout/return?orderId=${result.orderId}`);
-            }
-          },
-          modal: {
-            ondismiss: () => {
-              toast.message("Payment was not completed. Your order is still waiting.");
-              navigate(`/checkout/return?orderId=${result.orderId}`);
-            },
-          },
-        });
-        checkout.open();
-        return;
-      }
-
-      if (session.provider === "cashfree") {
-        await loadScript("https://sdk.cashfree.com/js/v3/cashfree.js");
-        if (!window.Cashfree) throw new Error("The Cashfree SDK did not load.");
-        const payload = session.clientPayload as {
-          paymentSessionId: string;
-          environment: string;
-        };
-        const cashfree = window.Cashfree({
-          mode: payload.environment === "production" ? "production" : "sandbox",
-        });
-        await cashfree.checkout({
-          paymentSessionId: payload.paymentSessionId,
-          redirectTarget: "_self",
-        });
-        return;
-      }
-
-      if (session.provider === "paypal") {
-        const payload = session.clientPayload as { approveUrl?: string };
-        if (!payload.approveUrl) throw new Error("PayPal did not return an approval link.");
-        window.location.assign(payload.approveUrl);
-        return;
-      }
-
-      throw new Error(`No client handoff is implemented for ${session.provider}.`);
+      navigate(`/checkout/return?orderId=${result.orderId}`, { state: { openPayment: true } });
     } catch (submitError) {
-      const message =
-        submitError instanceof Error ? submitError.message : "We could not place your order.";
-      setError(message);
-      toast.error(message);
+      setError(submitError instanceof ConvexError
+        ? String(submitError.data)
+        : "We could not place your order. Check your details and try again.");
     } finally {
+      if (!createdOrderId) submittingRequest.current = false;
       setSubmitting(false);
     }
   };
@@ -330,19 +232,7 @@ export default function Checkout() {
               </div>
               <div>
                 <Label htmlFor="country">Destination country</Label>
-                <select
-                  id="country"
-                  value={country}
-                  onChange={(event) => setCountry(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-2 text-sm"
-                >
-                  {(config?.shippingZones ?? []).map((entry) => (
-                    <option key={entry.countryCode} value={entry.countryCode}>
-                      {entry.country}
-                      {entry.serviceable ? "" : " — not serviceable"}
-                    </option>
-                  ))}
-                </select>
+                <Input id="country" value="India" readOnly />
               </div>
             </div>
           </section>
@@ -396,20 +286,30 @@ export default function Checkout() {
               </div>
               <div>
                 <Label htmlFor="postalCode">
-                  {country === "IN" ? "PIN code" : "Postal code"}
+                  PIN code
                 </Label>
                 <Input
                   id="postalCode"
                   required
-                  inputMode={country === "IN" ? "numeric" : "text"}
+                  inputMode="numeric"
+                  pattern="[1-9][0-9]{5}"
+                  maxLength={6}
                   value={form.postalCode}
                   onChange={(event) => setForm({ ...form, postalCode: event.target.value })}
                 />
               </div>
             </div>
+            {pin.length === 6 ? (
+              <p className="mt-3 text-sm" aria-live="polite">
+                {estimate?.status === "available" ? `Estimated delivery ${deliveryDateRange(estimate.earliest, estimate.latest)}`
+                  : estimate?.status === "unsupported" ? "Delivery is unavailable for this PIN code."
+                    : estimate?.status === "unconfigured" ? "Delivery estimates are unavailable. Contact support."
+                      : !/^[1-9][0-9]{5}$/.test(pin) ? "Enter a valid Indian PIN code." : "Checking delivery…"}
+              </p>
+            ) : null}
             {zone && !zone.serviceable ? (
               <InfoNote tone="warning" className="mt-4">
-                We do not currently deliver to {zone.country}. Choose another destination country.
+                Checkout is currently unavailable for this destination.
               </InfoNote>
             ) : null}
           </section>
@@ -431,9 +331,6 @@ export default function Checkout() {
                 >
                   <span>
                     <span className="font-medium">{option.label}</span>
-                    <span className="ml-2 text-muted-foreground">
-                      about {option.etaDays} days
-                    </span>
                   </span>
                   <span className="font-semibold">
                     {option.rateMinor === 0 ? "Free" : moneyLocal(option.rateMinor)}
@@ -464,26 +361,7 @@ export default function Checkout() {
                 </button>
               ))}
 
-              {quote.paymentOptions.testGateway ? (
-                <button
-                  type="button"
-                  onClick={() => setPaymentChoice("test_gateway")}
-                  className={cn(
-                    "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm",
-                    paymentChoice === "test_gateway" ? "border-primary bg-primary/5" : "border-border",
-                  )}
-                >
-                  <ShieldCheck className="mt-0.5 size-4 text-primary" />
-                  <span>
-                    <span className="font-medium">Test gateway (sandbox)</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      A KNOKH test harness that signs a webhook exactly like a live gateway so
-                      the order pipeline can be verified. No real money moves and no card details
-                      are collected. Disable it in Admin → Settings before going live.
-                    </span>
-                  </span>
-                </button>
-              ) : null}
+
 
               {quote.paymentOptions.cod ? (
                 <button
@@ -502,33 +380,7 @@ export default function Checkout() {
                 </button>
               ) : null}
 
-              {pendingOnline.map((provider) => (
-                <div
-                  key={provider.id}
-                  className="flex items-start gap-3 rounded-lg border border-dashed border-border px-4 py-3 text-sm opacity-80"
-                >
-                  <CreditCard className="mt-0.5 size-4 text-muted-foreground" />
-                  <span>
-                    <span className="font-medium">{provider.label}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      Not configured yet. An administrator must set{" "}
-                      {provider.missingEnvVars.join(", ")} on the deployment and enable the
-                      provider in Admin → Settings → Payments.
-                    </span>
-                    <a
-                      href={provider.docsUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1 inline-block text-xs text-primary hover:underline"
-                    >
-                      Provider setup documentation
-                    </a>
-                  </span>
-                </div>
-              ))}
-
               {configuredOnline.length === 0 &&
-              !quote.paymentOptions.testGateway &&
               !quote.paymentOptions.cod ? (
                 <InfoNote tone="danger">
                   No payment method is available for this destination yet. Contact support —
@@ -646,14 +498,15 @@ export default function Checkout() {
               type="submit"
               size="lg"
               className="mt-5 w-full gap-2"
-              disabled={submitting || quote.blockers.length > 0 || !paymentChoice}
+              disabled={submitting || quote.blockers.length > 0 || !paymentChoice || estimate?.status !== "available"}
             >
               {submitting ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
               {paymentChoice === "cod" ? "Place order (COD)" : "Pay and place order"}
             </Button>
             <p className="mt-3 text-xs text-muted-foreground">
-              By placing an order you agree to the terms and the returns policy. Card details are
-              handled by the payment provider and never stored by KNOKH.
+              No change-of-mind returns or refunds. Your legal rights still apply.{" "}
+              <Link className="underline" to="/info/returns-refunds">Returns and refunds policy</Link>.
+              Card details are handled by the payment provider.
             </p>
           </div>
         </aside>
@@ -662,162 +515,109 @@ export default function Checkout() {
   );
 }
 
-/** Handles the provider return URL after an external payment flow. */
+/** A return to the store only reads the verified payment state. */
 export function CheckoutReturn() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const orderId = searchParams.get("orderId") ?? "";
   const { config } = useStore();
+  const guestToken = readGuestOrderToken(orderId);
+  const createSession = useAction(api.paymentsActions.createPaymentSession);
+  const confirmPayment = useMutation(api.payments.confirmCheckoutResult);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const autoOpened = useRef(false);
+  const opening = useRef(false);
+
   const payment = useQuery(
     api.payments.getPaymentForOrder,
-    orderId ? { orderId: orderId as Id<"orders"> } : "skip",
+    /^[a-z0-9]{20,64}$/i.test(orderId) ? { orderId: orderId as Id<"orders">, guestToken } : "skip",
   );
+  const latest = payment?.payments[0];
+  const paid = latest?.status === "captured";
+  const canPay = latest?.provider === "razorpay" && ["created", "pending", "failed"].includes(latest.status);
 
   usePageMeta({ title: "Payment status", noIndex: true, path: "/checkout/return", siteUrl: config?.seo.siteUrl });
 
-  if (!orderId) {
-    return (
-      <Container className="py-16">
-        <EmptyState title="No order reference" description="Return to your orders page to continue." />
-      </Container>
-    );
+  async function openCheckout() {
+    if (opening.current) return;
+    opening.current = true;
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      // Load the provider UI first so a blocked script does not start order creation.
+      await loadScript("https://checkout.razorpay.com/v1/checkout.js");
+      if (!window.Razorpay) throw new Error("Payment checkout could not load.");
+      const session = await createSession({ orderId: orderId as Id<"orders">, guestToken });
+      const payload = session.clientPayload as {
+        key: string; razorpayOrderId: string; amountMinor: number;
+        currency: string; name: string; description: string;
+      };
+      new window.Razorpay({
+        key: payload.key, amount: payload.amountMinor, currency: payload.currency,
+        name: payload.name, description: payload.description, order_id: payload.razorpayOrderId,
+        handler: async (response) => {
+          try {
+            await confirmPayment({
+              orderId: orderId as Id<"orders">, guestToken,
+              providerOrderId: response.razorpay_order_id,
+              providerPaymentId: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+            });
+            navigate(`/order/${orderId}`);
+          } catch {
+            setMessage("The payment is awaiting confirmation. Check the order status before retrying.");
+            opening.current = false;
+            setBusy(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setMessage("Checkout was closed. Check the payment status before retrying.");
+            opening.current = false;
+            setBusy(false);
+          },
+        },
+      }).open();
+    } catch {
+      setMessage("Payment checkout could not open. Check this order or contact support before retrying.");
+      opening.current = false;
+      setBusy(false);
+    }
   }
 
-  if (payment === undefined) {
-    return (
-      <Container className="py-16">
-        <LoadingBlock label="Checking the payment with the gateway…" />
-      </Container>
-    );
-  }
+  useEffect(() => {
+    if (location.state?.openPayment && canPay && !autoOpened.current) {
+      autoOpened.current = true;
+      const start = window.setTimeout(() => void openCheckout(), 0);
+      return () => {
+        window.clearTimeout(start);
+        autoOpened.current = false;
+      };
+    }
+  // Only auto-open when the owned payment first becomes available.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPay, location.state]);
 
-  const latest = payment?.payments[0];
-  const paid = latest?.status === "captured";
+  if (!/^[a-z0-9]{20,64}$/i.test(orderId) || payment === null) {
+    return <Container className="py-16"><EmptyState title="Order unavailable" description="Open an order from your account or track a guest order." /></Container>;
+  }
+  if (payment === undefined) return <Container className="py-16"><LoadingBlock label="Checking payment…" /></Container>;
 
   return (
     <Container className="max-w-2xl py-16">
       <div className="rounded-xl border border-border bg-card p-6 text-center">
-        {paid ? (
-          <CheckCircle2 className="mx-auto size-10 text-emerald-600" />
-        ) : (
-          <Loader2 className="mx-auto size-10 animate-spin text-primary" />
-        )}
-        <h1 className="mt-4 text-xl font-bold tracking-tight">
-          {paid ? "Payment confirmed" : "Waiting for gateway confirmation"}
-        </h1>
+        {paid ? <CheckCircle2 className="mx-auto size-10 text-emerald-600" /> : <CreditCard className="mx-auto size-10 text-primary" />}
+        <h1 className="mt-4 text-xl font-bold">{paid ? "Payment confirmed" : "Payment status"}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {paid
-            ? "We received a signature-verified confirmation and fulfilment has started."
-            : "We will not mark this order as paid until the gateway confirms it with a verified signature or webhook. This page updates automatically."}
+          {paid ? "Razorpay confirmed the payment." : "This page updates when the payment provider confirms the capture."}
         </p>
-        {latest ? (
-          <p className="mt-4 text-xs text-muted-foreground">
-            Provider: {latest.provider} · status: {latest.status}
-            {latest.signatureVerified ? " · signature verified" : ""}
-          </p>
-        ) : null}
+        {message ? <p role="status" className="mt-3 text-sm">{message}</p> : null}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Button asChild>
-            <Link to="/account/orders">Go to my orders</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/shop">Keep shopping</Link>
-          </Button>
+          {canPay ? <Button disabled={busy} onClick={() => void openCheckout()}>Open payment checkout</Button> : null}
+          <Button variant="outline" asChild><Link to={`/order/${orderId}`}>View order</Link></Button>
         </div>
-      </div>
-
-      <div className="mt-6 rounded-xl border border-dashed border-border p-4 text-xs text-muted-foreground">
-        <p className="font-semibold text-foreground">Payment events received</p>
-        <ul className="mt-2 space-y-1">
-          {(payment?.events ?? []).map((event) => (
-            <li key={event._id}>
-              {event.provider} · {event.eventType} ·{" "}
-              {event.signatureValid ? "signature valid" : "signature rejected"} ·{" "}
-              {event.processed ? "processed" : "not processed"}
-              {event.processingError ? ` — ${event.processingError}` : ""}
-            </li>
-          ))}
-          {(payment?.events.length ?? 0) === 0 ? <li>None yet.</li> : null}
-        </ul>
-      </div>
-    </Container>
-  );
-}
-
-/** Sandbox checkout for the built-in test gateway. */
-export function SandboxCheckout() {
-  const { orderId = "" } = useParams();
-  const navigate = useNavigate();
-  const { config, moneyLocal } = useStore();
-  const simulate = useAction(api.paymentsActions.simulateTestGatewayEvent);
-  const [busy, setBusy] = useState<"captured" | "failed" | null>(null);
-  const [result, setResult] = useState<string | null>(null);
-
-  const order = useQuery(
-    api.orders.getOrderForCheckout,
-    orderId ? { orderId: orderId as Id<"orders"> } : "skip",
-  );
-
-  usePageMeta({ title: "Sandbox payment", noIndex: true, path: "/checkout/sandbox", siteUrl: config?.seo.siteUrl });
-
-  const run = async (outcome: "captured" | "failed") => {
-    setBusy(outcome);
-    try {
-      const response = await simulate({ orderId: orderId as Id<"orders">, outcome });
-      setResult(
-        `Webhook delivered with a valid signature. Result: ${response.status ?? "ignored"}${
-          response.duplicate ? " (duplicate ignored — idempotency working)" : ""
-        }.`,
-      );
-      if (outcome === "captured") {
-        setTimeout(() => navigate(`/order/${orderId}`), 900);
-      }
-    } catch (error) {
-      setResult(error instanceof Error ? error.message : "The simulation failed.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  return (
-    <Container className="max-w-2xl py-16">
-      <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-6">
-        <h1 className="text-xl font-bold tracking-tight">Test gateway — no real money</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          This page is a signed sandbox. It builds the same HMAC-SHA256 signed webhook a live
-          gateway sends and pushes it through the production verification, idempotency and
-          fulfilment path. It exists so the order pipeline can be tested before merchant
-          approval. Disable it in Admin → Settings → Payments before trading.
-        </p>
-        {order ? (
-          <div className="mt-5 rounded-lg border border-border bg-background p-4 text-sm">
-            <p className="font-semibold">Order {order.orderNumber}</p>
-            <p className="mt-1 text-muted-foreground">
-              {moneyLocal(order.totalMinor)} {order.currency} · payment status{" "}
-              {order.paymentStatus}
-            </p>
-          </div>
-        ) : (
-          <LoadingBlock label="Loading the order…" />
-        )}
-        <div className="mt-5 flex flex-wrap gap-2">
-          <Button disabled={busy !== null} onClick={() => void run("captured")}>
-            {busy === "captured" ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-            Simulate successful payment
-          </Button>
-          <Button
-            variant="outline"
-            disabled={busy !== null}
-            onClick={() => void run("failed")}
-          >
-            {busy === "failed" ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
-            Simulate failed payment
-          </Button>
-        </div>
-        {result ? (
-          <InfoNote className="mt-4">
-            {result}
-          </InfoNote>
-        ) : null}
       </div>
     </Container>
   );

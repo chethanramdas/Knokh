@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { Loader2, PackageCheck, Search, Truck } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -226,6 +226,7 @@ export function AdminOrderDetail() {
   const addShipment = useMutation(api.admin.addShipment);
   const createRefund = useMutation(api.admin.createRefund);
   const setRefundStatus = useMutation(api.admin.setRefundStatus);
+  const submitRazorpayRefund = useAction(api.paymentsActions.requestRefund);
   const manualFulfil = useMutation(api.suppliers.completeManualFulfilment);
 
   const [shipment, setShipment] = useState<{
@@ -369,7 +370,7 @@ export function AdminOrderDetail() {
             Total {formatBase(order.totalMinor, order.currency)}
           </span>
           <span className="text-muted-foreground">
-            Recorded cost {formatBase(order.costTotalMinor, order.baseCurrency)}
+            Recorded cost {formatBase(order.costTotalMinor ?? 0, order.baseCurrency)}
           </span>
         </div>
       </div>
@@ -640,7 +641,21 @@ export function AdminOrderDetail() {
                 </span>
               </span>
               <span className="flex gap-1">
-                {(["approved", "completed", "rejected"] as const).map(
+                {order.provider === "razorpay" && ["approved", "processing"].includes(entry.status) ? (
+                  <Button size="sm" onClick={async () => {
+                    try {
+                      const result = await submitRazorpayRefund({ refundId: entry._id });
+                      if (result.ok) toast.success(result.message);
+                      else toast.error(result.message);
+                    } catch {
+                      toast.error("Razorpay refund could not be submitted. Check the refund record.");
+                    }
+                  }}>Submit to Razorpay</Button>
+                ) : null}
+                {(["approved", "completed", "rejected"] as const)
+                  .filter((status) => order.provider !== "razorpay" ||
+                    (status !== "completed" && ["requested", "approved"].includes(entry.status)))
+                  .map(
                   (status) => (
                     <Button
                       key={status}
